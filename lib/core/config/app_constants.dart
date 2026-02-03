@@ -26,7 +26,6 @@ class AppConstants {
   static const List<String> resourceCategories = [
     'Ordinary Level',
     'Advanced Level',
-    'Self Help Books',
     'Other Books',
   ];
 

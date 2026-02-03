@@ -1,6 +1,7 @@
 // lib/features/alumni/presentation/screens/alumni_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
@@ -299,10 +300,7 @@ class _AlumniPageState extends State<AlumniPage> {
           school: alumni['school'],
           classInfo: alumni['classInfo'],
           onTap: () {
-            Get.to(
-              () => AlumniDetailPage(alumniData: alumni),
-              transition: Transition.rightToLeft,
-            );
+            Get.toNamed(AppRoutes.alumniDetail, arguments: alumni);
           },
         );
       },

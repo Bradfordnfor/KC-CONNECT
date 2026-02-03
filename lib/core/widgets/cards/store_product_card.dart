@@ -43,7 +43,7 @@ class StoreProductCard extends StatelessWidget {
           children: [
             // Image section with tag
             AspectRatio(
-              aspectRatio: 1.0,
+              aspectRatio: 9 / 7,
               child: Stack(
                 children: [
                   // Image
@@ -79,7 +79,6 @@ class StoreProductCard extends StatelessWidget {
                           ),
                   ),
 
-                  // Tag in top-left corner (like in your Figma)
                   if (showTag && tag != null)
                     Positioned(
                       left: 0,
@@ -129,7 +128,7 @@ class StoreProductCard extends StatelessWidget {
 
             // Title and Price section
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 0, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

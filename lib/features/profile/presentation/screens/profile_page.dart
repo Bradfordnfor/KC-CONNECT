@@ -1,127 +1,121 @@
+// lib/features/profile/presentation/screens/profile_page.dart
 import 'package:flutter/material.dart';
-import 'package:kc_connect/core/config/app_constants.dart';
+import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
-import 'package:kc_connect/core/widgets/bottom_nav_bar.dart';
+import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 100),
-                child: Column(
-                  children: [
-                    _buildProfileHeader(),
-                    const SizedBox(height: 16),
-                    _buildInfoSection(),
-                    const SizedBox(height: 16),
-                    _buildSettingsSection(),
-                  ],
-                ),
-              ),
-            ),
-          ],
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.blue),
+          onPressed: () => Get.back(),
         ),
-      ),
-      bottomNavigationBar: const BottomNavBar(),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: AppColors.white,
-      child: Row(
-        children: [
-          Image.asset(AppConstants.appIcon, height: 40),
-          const SizedBox(width: 12),
-          Text(
-            'PROFILE',
-            style: AppTextStyles.subHeading.copyWith(color: AppColors.deepRed),
+        title: Text(
+          'Profile',
+          style: AppTextStyles.subHeading.copyWith(
+            color: AppColors.blue,
+            fontSize: 20,
           ),
-          const Spacer(),
+        ),
+        centerTitle: true,
+        actions: [
           IconButton(
-            icon: const Icon(Icons.edit, color: AppColors.blue),
-            onPressed: () {
-              // Navigate to edit profile
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.menu, color: AppColors.blue),
-            onPressed: () => Scaffold.of(context).openEndDrawer(),
+            icon: const Icon(Icons.settings, color: AppColors.blue),
+            onPressed: () => Get.toNamed('/settings'),
+            tooltip: 'Settings',
           ),
         ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            _buildProfileHeader(),
+            const SizedBox(height: 32),
+            _buildInfoSection(),
+            const SizedBox(height: 24),
+            _buildStatsSection(),
+            const SizedBox(height: 24),
+            _buildActivitySection(),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildProfileHeader() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Column(
+      children: [
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            gradient: AppColors.gradientColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.red.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              gradient: AppColors.gradientColor,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, size: 50, color: AppColors.white),
+          child: const Icon(Icons.person, color: AppColors.white, size: 50),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'John Kamdem',
+          style: AppTextStyles.heading.copyWith(
+            color: AppColors.blue,
+            fontSize: 24,
           ),
-          const SizedBox(height: 16),
-          Text(
-            'John Doe',
-            style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Student',
+          style: AppTextStyles.body.copyWith(
+            color: Colors.grey[600],
+            fontSize: 14,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Student • Advanced Level',
-            style: AppTextStyles.body.copyWith(color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Knowledge College',
+          style: AppTextStyles.caption.copyWith(
+            color: Colors.grey[500],
+            fontSize: 13,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'john.doe@kcconnect.com',
-            style: AppTextStyles.caption.copyWith(color: AppColors.blue),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: 160,
+          child: PrimaryButton(
+            label: 'Edit Profile',
+            onPressed: () => Get.toNamed('/settings'),
+            height: 40,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildInfoSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -134,20 +128,21 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Personal Information',
+            'Information',
             style: AppTextStyles.body.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.blue,
+              fontSize: 16,
             ),
           ),
           const SizedBox(height: 16),
+          _buildInfoRow(Icons.email, 'Email', 'john.kamdem@kcconnect.com'),
+          const SizedBox(height: 12),
           _buildInfoRow(Icons.phone, 'Phone', '+237 123 456 789'),
-          const Divider(height: 24),
-          _buildInfoRow(Icons.location_on, 'Location', 'Yaoundé, Cameroon'),
-          const Divider(height: 24),
-          _buildInfoRow(Icons.school, 'Institution', 'Knowledge College'),
-          const Divider(height: 24),
-          _buildInfoRow(Icons.calendar_today, 'Joined', 'January 2024'),
+          const SizedBox(height: 12),
+          _buildInfoRow(Icons.school, 'Level', 'Advanced Level'),
+          const SizedBox(height: 12),
+          _buildInfoRow(Icons.calendar_today, 'Class', 'Class of 2024'),
         ],
       ),
     );
@@ -157,40 +152,83 @@ class _ProfilePageState extends State<ProfilePage> {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor,
+            color: AppColors.blue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: AppColors.blue, size: 20),
+          child: Icon(icon, color: AppColors.blue, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.grey[600],
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            icon: Icons.event,
+            label: 'Events',
+            value: '2',
+            color: AppColors.blue,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ],
+          child: _buildStatCard(
+            icon: Icons.bookmark,
+            label: 'Saved',
+            value: '3',
+            color: AppColors.deepRed,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            icon: Icons.download,
+            label: 'Downloads',
+            value: '12',
+            color: AppColors.blue,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSettingsSection() {
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -201,57 +239,127 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Column(
         children: [
-          _buildSettingsTile(Icons.lock, 'Privacy Policy', () {}),
-          const Divider(height: 1),
-          _buildSettingsTile(Icons.settings, 'Settings', () {}),
-          const Divider(height: 1),
-          _buildSettingsTile(Icons.help, 'Help & Support', () {}),
-          const Divider(height: 1),
-          _buildSettingsTile(
-            Icons.logout,
-            'Logout',
-            () {},
-            isDestructive: true,
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: AppTextStyles.subHeading.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.grey[600],
+              fontSize: 11,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsTile(
-    IconData icon,
-    String title,
-    VoidCallback onTap, {
-    bool isDestructive = false,
+  Widget _buildActivitySection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, color: AppColors.blue, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                'Recent Activity',
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.blue,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildActivityItem(
+            icon: Icons.event,
+            title: 'Registered for STEM Quest',
+            time: '2 days ago',
+            color: AppColors.blue,
+          ),
+          const SizedBox(height: 12),
+          _buildActivityItem(
+            icon: Icons.download,
+            title: 'Downloaded Mathematics Past Paper',
+            time: '5 days ago',
+            color: AppColors.deepRed,
+          ),
+          const SizedBox(height: 12),
+          _buildActivityItem(
+            icon: Icons.bookmark,
+            title: 'Saved Physics Study Guide',
+            time: '1 week ago',
+            color: AppColors.blue,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityItem({
+    required IconData icon,
+    required String title,
+    required String time,
+    required Color color,
   }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: isDestructive
-              ? AppColors.red.withOpacity(0.1)
-              : AppColors.backgroundColor,
-          borderRadius: BorderRadius.circular(8),
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 18),
         ),
-        child: Icon(
-          icon,
-          color: isDestructive ? AppColors.red : AppColors.blue,
-          size: 20,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                time,
+                style: AppTextStyles.caption.copyWith(
+                  color: Colors.grey[500],
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      title: Text(
-        title,
-        style: AppTextStyles.body.copyWith(
-          fontWeight: FontWeight.w600,
-          color: isDestructive ? AppColors.red : Colors.black87,
-        ),
-      ),
-      trailing: Icon(
-        Icons.arrow_forward_ios,
-        size: 16,
-        color: isDestructive ? AppColors.red : AppColors.blue,
-      ),
-      onTap: onTap,
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 // lib/features/chat/presentation/screens/learn_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
@@ -433,10 +434,7 @@ class _LearnPageState extends State<LearnPage>
                 size: 24,
               ),
               onPressed: () {
-                Get.to(
-                  () => const AIChatPage(),
-                  transition: Transition.rightToLeft,
-                );
+                Get.toNamed(AppRoutes.aiChat);
               },
             ),
           ),

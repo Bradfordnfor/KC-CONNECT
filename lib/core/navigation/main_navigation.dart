@@ -7,6 +7,7 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/bottom_nav_bar.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
+import 'package:kc_connect/features/admin/presentation/screens/admin_navigation_screen.dart';
 import 'package:kc_connect/features/home/presentation/screens/home_page.dart';
 import 'package:kc_connect/features/resources/presentation/screens/resources_page.dart';
 import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
@@ -253,6 +254,18 @@ class MainNavigation extends StatelessWidget {
                         _showLogoutDialog();
                       },
                     ),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.admin_panel_settings,
+                      title: 'Admin Panel',
+                      onTap: () {
+                        Navigator.pop(context);
+                        // TODO: Add permission check when auth is ready
+                        // if (Permissions.canAccessAdmin()) {
+                        Get.to(() => AdminMainPage());
+                        // }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -286,6 +299,10 @@ class MainNavigation extends StatelessWidget {
   }
 
   void _showLogoutDialog() {
+    _showLogoutDialogStatic(Get.context!);
+  }
+
+  static void _showLogoutDialogStatic(BuildContext context) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -357,6 +374,30 @@ class MainNavigation extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  // Static method to build secondary page app bar
+  static PreferredSizeWidget buildSecondaryAppBar(
+    BuildContext context, {
+    required String title,
+    VoidCallback? onBackPressed,
+  }) {
+    return AppBar(
+      backgroundColor: AppColors.white,
+      elevation: 2,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: AppColors.blue),
+        onPressed: onBackPressed ?? () => Get.back(),
+      ),
+      title: Text(
+        title,
+        style: AppTextStyles.subHeading.copyWith(
+          color: AppColors.blue,
+          fontSize: 20,
+        ),
+      ),
+      centerTitle: true,
     );
   }
 }

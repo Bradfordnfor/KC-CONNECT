@@ -1,6 +1,12 @@
 // lib/core/routes/app_pages.dart
 import 'package:get/get.dart';
+import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
+import 'package:kc_connect/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:kc_connect/features/auth/presentation/screens/login_screen.dart';
+import 'package:kc_connect/features/auth/presentation/screens/otp_verification_screen.dart';
+import 'package:kc_connect/features/auth/presentation/screens/sign_up_screen.dart';
+import 'package:kc_connect/features/auth/presentation/screens/splash_screen.dart';
 import 'package:kc_connect/features/home/presentation/screens/home_page.dart';
 import 'package:kc_connect/features/resources/presentation/screens/resources_page.dart';
 import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
@@ -23,6 +29,11 @@ class AppPages {
   /// List of all application pages with GetX configuration
   static final pages = [
     // ==================== MAIN NAVIGATION PAGES ====================
+    GetPage(
+      name: AppRoutes.main, // e.g '/main'
+      page: () => MainNavigation(),
+    ),
+
     GetPage(
       name: AppRoutes.home,
       page: () => const HomePage(),
@@ -142,22 +153,35 @@ class AppPages {
     ),
 
     // ==================== AUTH PAGES (Future) ====================
-    // GetPage(
-    //   name: AppRoutes.login,
-    //   page: () => const LoginPage(),
-    //   transition: Transition.fadeIn,
-    // ),
+    GetPage(
+      name: AppRoutes.splash,
+      page: () => const SplashScreen(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 500),
+    ),
 
-    // GetPage(
-    //   name: AppRoutes.register,
-    //   page: () => const RegisterPage(),
-    //   transition: Transition.rightToLeft,
-    // ),
+    GetPage(
+      name: AppRoutes.login,
+      page: () => const LoginScreen(),
+      transition: Transition.fadeIn,
+    ),
 
-    // GetPage(
-    //   name: AppRoutes.forgotPassword,
-    //   page: () => const ForgotPasswordPage(),
-    //   transition: Transition.rightToLeft,
-    // ),
+    GetPage(
+      name: AppRoutes.register,
+      page: () => const SignupScreen(),
+      transition: Transition.rightToLeft,
+    ),
+
+    GetPage(
+      name: AppRoutes.forgotPassword,
+      page: () => const ForgotPasswordScreen(),
+      transition: Transition.rightToLeft,
+    ),
+
+    GetPage(
+      name: AppRoutes.oTPVerification,
+      page: () => const OTPVerificationScreen(),
+      transition: Transition.rightToLeft,
+    ),
   ];
 }

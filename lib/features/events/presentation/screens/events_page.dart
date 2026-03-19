@@ -6,10 +6,12 @@ import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 import 'package:kc_connect/core/widgets/cards/kc_list_card.dart';
+import 'package:kc_connect/core/widgets/common/app_fab.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
 import 'package:kc_connect/features/events/controllers/events_controller.dart';
+import 'package:kc_connect/features/events/presentation/widgets/add_event_modal.dart';
 
 class EventsPage extends StatelessWidget {
   EventsPage({super.key});
@@ -18,42 +20,55 @@ class EventsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.backgroundColor,
-      child: Obx(() {
-        if (controller.isLoading) {
-          return const Center(child: LoadingIndicator());
-        }
+    return Stack(
+      children: [
+        Material(
+          color: AppColors.backgroundColor,
+          child: Obx(() {
+            if (controller.isLoading) {
+              return const Center(child: LoadingIndicator());
+            }
 
-        if (controller.errorMessage.isNotEmpty) {
-          return ErrorDisplay(
-            message: controller.errorMessage,
-            onRetry: () => controller.refreshEvents(),
-          );
-        }
+            if (controller.errorMessage.isNotEmpty) {
+              return ErrorDisplay(
+                message: controller.errorMessage,
+                onRetry: () => controller.refreshEvents(),
+              );
+            }
 
-        return RefreshIndicator(
-          onRefresh: () => controller.refreshEvents(),
-          color: AppColors.blue,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 100),
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 16),
-                _buildFeaturedEventCarousel(),
-                const SizedBox(height: 24),
-                _buildSearchAndFilter(),
-                const SizedBox(height: 16),
-                _buildUpcomingEventsHeader(),
-                const SizedBox(height: 12),
-                _buildEventsList(),
-              ],
-            ),
+            return RefreshIndicator(
+              onRefresh: () => controller.refreshEvents(),
+              color: AppColors.blue,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 100),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    _buildFeaturedEventCarousel(),
+                    const SizedBox(height: 24),
+                    _buildSearchAndFilter(),
+                    const SizedBox(height: 16),
+                    _buildUpcomingEventsHeader(),
+                    const SizedBox(height: 12),
+                    _buildEventsList(),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+
+        Positioned(
+          right: 20,
+          bottom: 35,
+          child: AppFAB(
+            onPressed: () => showAddEventModal(context),
+            tooltip: 'Add Event',
           ),
-        );
-      }),
+        ),
+      ],
     );
   }
 

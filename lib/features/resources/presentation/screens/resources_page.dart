@@ -4,10 +4,12 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/cards/kc_list_card.dart';
-import 'package:kc_connect/core/widgets/loading_indicator.dart';
+import 'package:kc_connect/core/widgets/common/app_fab.dart';
 import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
+import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/features/resources/controllers/resources_controller.dart';
+import 'package:kc_connect/features/resources/presentation/widgets/upload_resource_modal.dart';
 
 class ResourcesPage extends StatefulWidget {
   const ResourcesPage({super.key});
@@ -40,16 +42,28 @@ class _ResourcesPageState extends State<ResourcesPage>
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.backgroundColor,
-      child: Column(
-        children: [
-          _buildTabBar(),
-          _buildSearchAndFilter(),
+    return Stack(
+      children: [
+        Material(
+          color: AppColors.backgroundColor,
+          child: Column(
+            children: [
+              _buildTabBar(),
+              _buildSearchAndFilter(),
+              Expanded(child: _buildContent()),
+            ],
+          ),
+        ),
 
-          Expanded(child: _buildContent()),
-        ],
-      ),
+        Positioned(
+          right: 20,
+          bottom: 35,
+          child: AppFAB(
+            onPressed: () => showUploadResourceModal(context),
+            tooltip: 'Upload Resource',
+          ),
+        ),
+      ],
     );
   }
 
@@ -132,7 +146,9 @@ class _ResourcesPageState extends State<ResourcesPage>
               ],
             ),
             child: Obx(() {
-              final isFiltered = controller.selectedSubject != 'All';
+              final isFiltered =
+                  controller.selectedSubject != 'All' ||
+                  controller.showFavoritesOnly;
               return IconButton(
                 icon: Icon(
                   Icons.filter_list,
@@ -248,12 +264,14 @@ class _ResourcesPageState extends State<ResourcesPage>
           title: 'No Resources Found',
           message:
               controller.searchQuery.isNotEmpty ||
-                  controller.selectedSubject != 'All'
+                  controller.selectedSubject != 'All' ||
+                  controller.showFavoritesOnly
               ? 'Try adjusting your search or filters'
               : 'No resources available in this category',
           action:
               controller.searchQuery.isNotEmpty ||
-                  controller.selectedSubject != 'All'
+                  controller.selectedSubject != 'All' ||
+                  controller.showFavoritesOnly
               ? TextButton(
                   onPressed: () => controller.resetFilters(),
                   child: Text(
@@ -276,6 +294,8 @@ class _ResourcesPageState extends State<ResourcesPage>
           itemCount: controller.filteredResources.length,
           itemBuilder: (context, index) {
             final resource = controller.filteredResources[index];
+            final isFavorited = controller.isFavorited(resource.id);
+
             return KCListCard(
               icon: Icons.menu_book,
               title: resource.title,
@@ -287,12 +307,8 @@ class _ResourcesPageState extends State<ResourcesPage>
                 children: [
                   IconButton(
                     icon: Icon(
-                      resource.isFavorite
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: resource.isFavorite
-                          ? AppColors.red
-                          : AppColors.blue,
+                      isFavorited ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorited ? AppColors.red : AppColors.blue,
                       size: 22,
                     ),
                     onPressed: () => controller.toggleFavorite(resource.id),
@@ -352,6 +368,52 @@ class _ResourcesPageState extends State<ResourcesPage>
             ),
 
             const SizedBox(height: 16),
+
+            // Favorites filter
+            Row(
+              children: [
+                Obx(() {
+                  final showFavorites = controller.showFavoritesOnly;
+                  final favoritesCount = controller.getFavoritesCount();
+
+                  return FilterChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          showFavorites
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          size: 16,
+                          color: showFavorites
+                              ? AppColors.white
+                              : AppColors.red,
+                        ),
+                        const SizedBox(width: 4),
+                        Text('Favorites'),
+                        if (favoritesCount > 0) ...[
+                          const SizedBox(width: 4),
+                          Text('($favoritesCount)'),
+                        ],
+                      ],
+                    ),
+                    selected: showFavorites,
+                    onSelected: (selected) {
+                      controller.toggleShowFavoritesOnly();
+                    },
+                    backgroundColor: AppColors.backgroundColor,
+                    selectedColor: AppColors.red,
+                    labelStyle: AppTextStyles.body.copyWith(
+                      color: showFavorites ? AppColors.white : AppColors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  );
+                }),
+              ],
+            ),
+
+            const SizedBox(height: 24),
 
             // Subject filter
             Text(

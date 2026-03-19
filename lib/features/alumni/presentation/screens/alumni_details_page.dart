@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
+import 'package:kc_connect/core/widgets/common/animated_like_button.dart';
+import 'package:kc_connect/features/alumni/controllers/alumni_controller.dart';
 
 class AlumniDetailPage extends StatelessWidget {
   final Map<String, dynamic> alumniData;
@@ -11,18 +13,26 @@ class AlumniDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Use Get.put to initialize controller if not already initialized
+    final controller = Get.put(AlumniController());
+    final alumniId = alumniData['id'] ?? '';
+
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.favorite_border, color: AppColors.blue),
-          onPressed: () {
-            // Add to favorites
-          },
-        ),
-
+        leading: Obx(() {
+          final isLiked = controller.isAlumniLiked(alumniId);
+          return IconButton(
+            icon: AppLikeIcon(
+              isLiked: isLiked,
+              onTap: () => controller.toggleLike(alumniId),
+              size: 28,
+            ),
+            onPressed: () => controller.toggleLike(alumniId),
+          );
+        }),
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.grey),
@@ -35,6 +45,37 @@ class AlumniDetailPage extends StatelessWidget {
           children: [
             const SizedBox(height: 24),
             _buildProfileHeader(),
+            const SizedBox(height: 16),
+
+            // Like count display
+            Obx(() {
+              final likeCount = controller.getAlumniLikeCount(alumniId);
+              if (likeCount > 0) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.favorite,
+                        color: AppColors.red,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$likeCount ${likeCount == 1 ? 'like' : 'likes'}',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+
             const SizedBox(height: 24),
             _buildBioSection(),
             const SizedBox(height: 20),
@@ -221,25 +262,24 @@ class AlumniDetailPage extends StatelessWidget {
   }
 
   Widget _buildRequestButton() {
+    // Use Get.put instead of Get.find to ensure controller exists
+    final controller = Get.put(AlumniController());
+    final alumniId = alumniData['id'] ?? '';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: PrimaryButton(
-        label: 'Request Mentorship',
-        onPressed: () {
-          // Handle mentorship request
-          Get.snackbar(
-            'Request Sent',
-            'Your mentorship request has been sent to ${alumniData['name']}',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: AppColors.blue,
-            colorText: AppColors.white,
-            margin: const EdgeInsets.all(16),
-            borderRadius: 8,
-          );
-        },
-        expanded: true,
-        height: 50,
-      ),
+      child: Obx(() {
+        final hasPendingRequest = controller.hasMentorshipRequest(alumniId);
+
+        return PrimaryButton(
+          label: hasPendingRequest ? 'Request Pending' : 'Request Mentorship',
+          onPressed: hasPendingRequest
+              ? null
+              : () => controller.requestMentorship(alumniId),
+          expanded: true,
+          height: 50,
+        );
+      }),
     );
   }
 }

@@ -5,9 +5,11 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/cards/store_product_card.dart';
+import 'package:kc_connect/core/widgets/common/app_fab.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/features/kstore/controllers/store_controller.dart';
+import 'package:kc_connect/features/kstore/presentation/widgets/add_product_modal.dart';
 import 'package:kc_connect/features/kstore/presentation/widgets/product_detail_dialog.dart';
 import 'package:kc_connect/core/widgets/search_bar.dart';
 
@@ -18,19 +20,31 @@ class KstorePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.backgroundColor,
-      child: SafeArea(
-        child: Column(
-          children: [
-            _buildPriceBannerCarousel(),
-            const SizedBox(height: 16),
-            _buildListingsHeaderWithSearch(),
-            const SizedBox(height: 16),
-            Expanded(child: _buildProductGrid()),
-          ],
+    return Stack(
+      children: [
+        Material(
+          color: AppColors.backgroundColor,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildPriceBannerCarousel(),
+                const SizedBox(height: 16),
+                _buildListingsHeaderWithSearch(),
+                const SizedBox(height: 16),
+                Expanded(child: _buildProductGrid()),
+              ],
+            ),
+          ),
         ),
-      ),
+        Positioned(
+          right: 20,
+          bottom: 35,
+          child: AppFAB(
+            onPressed: () => showAddProductModal(context),
+            tooltip: 'Add Product',
+          ),
+        ),
+      ],
     );
   }
 

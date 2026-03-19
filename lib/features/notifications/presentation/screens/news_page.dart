@@ -1,5 +1,7 @@
 // lib/features/notifications/presentation/screens/news_page.dart
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 
@@ -16,7 +18,7 @@ class _NewsPageState extends State<NewsPage> {
       'id': '1',
       'title': 'The STEM is here!!',
       'description':
-          'Register for the national STEM quest today and get a 30% discount on ...',
+          'Register for the national STEM quest today and get a 30% discount on first registration',
       'timestamp': DateTime.now().subtract(const Duration(hours: 2)),
       'isRead': false,
     },
@@ -71,9 +73,13 @@ class _NewsPageState extends State<NewsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.backgroundColor,
-      child: Column(
+    return Scaffold(
+      backgroundColor: AppColors.backgroundColor,
+      appBar: MainNavigation.buildSecondaryAppBar(
+        context,
+        title: 'Notifications',
+      ),
+      body: Column(
         children: [
           _buildClearButton(),
           Expanded(
@@ -111,7 +117,7 @@ class _NewsPageState extends State<NewsPage> {
 
   Widget _buildNotificationsList() {
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 100, top: 8),
+      padding: const EdgeInsets.only(bottom: 20),
       itemCount: notifications.length,
       itemBuilder: (context, index) {
         final notification = notifications[index];
@@ -126,13 +132,14 @@ class _NewsPageState extends State<NewsPage> {
     return GestureDetector(
       onTap: () {
         _markAsRead(notification['id']);
-        // Navigate to notification detail if needed
+        // Show full notification details
+        _showNotificationDetail(notification);
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isRead ? AppColors.white.withOpacity(0.7) : AppColors.white,
+          color: isRead ? AppColors.white.withOpacity(0.5) : AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isRead
@@ -158,7 +165,7 @@ class _NewsPageState extends State<NewsPage> {
               decoration: BoxDecoration(
                 color: isRead
                     ? AppColors.blue.withOpacity(0.1)
-                    : AppColors.blue.withOpacity(0.15),
+                    : AppColors.blue.withOpacity(0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.notifications, color: AppColors.blue, size: 20),
@@ -221,6 +228,84 @@ class _NewsPageState extends State<NewsPage> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showNotificationDetail(Map<String, dynamic> notification) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.blue.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.notifications,
+                        color: AppColors.blue,
+                        size: 22,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Get.back(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  notification['title'] as String,
+                  style: AppTextStyles.subHeading.copyWith(
+                    color: AppColors.blue,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  notification['description'] as String,
+                  style: AppTextStyles.body.copyWith(
+                    color: Colors.grey[700],
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _formatTimestamp(notification['timestamp'] as DateTime),
+                  style: AppTextStyles.caption.copyWith(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Get.back(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: AppColors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

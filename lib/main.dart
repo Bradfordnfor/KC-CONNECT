@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
       ),
 
       // GetX Routes Configuration
-      initialRoute: AppRoutes.home,
+      initialRoute: AppRoutes.splash,
       getPages: AppPages.pages,
 
       // Default Transitions

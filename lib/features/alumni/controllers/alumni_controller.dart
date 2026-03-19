@@ -1,6 +1,7 @@
-// lib/features/alumni/controllers/alumni_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
+import 'package:kc_connect/core/widgets/common/snackbar.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AlumniController extends GetxController {
   // Reactive state
@@ -14,6 +15,8 @@ class AlumniController extends GetxController {
   final _errorMessage = ''.obs;
   final _mentorshipRequests =
       <String>[].obs; // Alumni IDs with pending requests
+  final _likedAlumni = <String>[].obs; // Alumni IDs that current user liked
+  final _alumniLikeCounts = <String, int>{}.obs; // Alumni ID -> like count
 
   // Getters
   List<AlumniModel> get allAlumni => _allAlumni;
@@ -29,6 +32,7 @@ class AlumniController extends GetxController {
   void onInit() {
     super.onInit();
     loadAlumni();
+    loadLikedAlumni();
   }
 
   // Load alumni
@@ -44,10 +48,146 @@ class AlumniController extends GetxController {
       _allAlumni.value = AlumniModel.mockList();
       _applyFilters();
 
+      // Load like counts for each alumni
+      await _loadLikeCounts();
+
       _isLoading.value = false;
     } catch (e) {
       _errorMessage.value = 'Failed to load alumni: ${e.toString()}';
       _isLoading.value = false;
+    }
+  }
+
+  // Load alumni that current user has liked
+  Future<void> loadLikedAlumni() async {
+    try {
+      // TODO: Replace with actual Supabase query
+      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      // if (currentUserId == null) return;
+
+      // final response = await Supabase.instance.client
+      //     .from('alumni_likes')
+      //     .select('alumni_id')
+      //     .eq('user_id', currentUserId);
+
+      // _likedAlumni.value = (response as List)
+      //     .map((item) => item['alumni_id'] as String)
+      //     .toList();
+
+      // Mock data for now
+      await Future.delayed(const Duration(milliseconds: 200));
+      _likedAlumni.value = []; // Empty initially
+    } catch (e) {
+      print('Error loading liked alumni: $e');
+    }
+  }
+
+  // Load like counts for all alumni
+  Future<void> _loadLikeCounts() async {
+    try {
+      // TODO: Replace with actual Supabase query
+      // final response = await Supabase.instance.client
+      //     .from('users')
+      //     .select('id, total_likes')
+      //     .in_('id', _allAlumni.map((a) => a.id).toList());
+
+      // final counts = <String, int>{};
+      // for (final row in response as List) {
+      //   counts[row['id']] = row['total_likes'] ?? 0;
+      // }
+      // _alumniLikeCounts.value = counts;
+
+      // Mock data for now
+      await Future.delayed(const Duration(milliseconds: 200));
+      final counts = <String, int>{};
+      for (final alumni in _allAlumni) {
+        counts[alumni.id] = 0; // Start with 0 likes
+      }
+      _alumniLikeCounts.value = counts;
+    } catch (e) {
+      print('Error loading like counts: $e');
+    }
+  }
+
+  // Check if current user liked an alumni
+  bool isAlumniLiked(String alumniId) {
+    return _likedAlumni.contains(alumniId);
+  }
+
+  // Get like count for an alumni
+  int getAlumniLikeCount(String alumniId) {
+    return _alumniLikeCounts[alumniId] ?? 0;
+  }
+
+  // Toggle like/unlike
+  Future<void> toggleLike(String alumniId) async {
+    try {
+      final isCurrentlyLiked = isAlumniLiked(alumniId);
+      final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
+
+      if (isCurrentlyLiked) {
+        // Unlike
+        await _unlikeAlumni(alumniId);
+        _likedAlumni.remove(alumniId);
+        _alumniLikeCounts[alumniId] = (_alumniLikeCounts[alumniId] ?? 1) - 1;
+
+        AppSnackbar.info('Removed', 'Removed ${alumni.name} from favorites');
+      } else {
+        // Like
+        await _likeAlumni(alumniId);
+        _likedAlumni.add(alumniId);
+        _alumniLikeCounts[alumniId] = (_alumniLikeCounts[alumniId] ?? 0) + 1;
+
+        AppSnackbar.success('Liked', 'Added ${alumni.name} to favorites');
+      }
+
+      // Trigger UI update
+      _alumniLikeCounts.refresh();
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to update favorite status');
+    }
+  }
+
+  // Like alumni (Supabase)
+  Future<void> _likeAlumni(String alumniId) async {
+    try {
+      // TODO: Replace with actual Supabase insert
+      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      // if (currentUserId == null) throw Exception('Not authenticated');
+
+      // await Supabase.instance.client.from('alumni_likes').insert({
+      //   'user_id': currentUserId,
+      //   'alumni_id': alumniId,
+      // });
+
+      // Trigger will auto-increment total_likes in users table
+
+      // Simulate API call
+      await Future.delayed(const Duration(milliseconds: 300));
+    } catch (e) {
+      throw Exception('Failed to like alumni: $e');
+    }
+  }
+
+  // Unlike alumni (Supabase)
+  Future<void> _unlikeAlumni(String alumniId) async {
+    try {
+      // TODO: Replace with actual Supabase delete
+      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      // if (currentUserId == null) throw Exception('Not authenticated');
+
+      // await Supabase.instance.client
+      //     .from('alumni_likes')
+      //     .delete()
+      //     .eq('user_id', currentUserId)
+      //     .eq('alumni_id', alumniId);
+
+      // Trigger will auto-decrement total_likes in users table
+
+      // Simulate API call
+      await Future.delayed(const Duration(milliseconds: 300));
+    } catch (e) {
+      throw Exception('Failed to unlike alumni: $e');
     }
   }
 
@@ -145,22 +285,18 @@ class AlumniController extends GetxController {
 
       // Check if already requested
       if (_mentorshipRequests.contains(alumniId)) {
-        Get.snackbar(
+        AppSnackbar.info(
           'Already Requested',
           'You have already sent a mentorship request to ${alumni.name}',
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
         );
         return;
       }
 
       // Check if available
       if (!alumni.isAvailableForMentorship) {
-        Get.snackbar(
+        AppSnackbar.warning(
           'Not Available',
           '${alumni.name} is not currently available for mentorship',
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
         );
         return;
       }
@@ -171,19 +307,12 @@ class AlumniController extends GetxController {
       // Add to requests
       _mentorshipRequests.add(alumniId);
 
-      Get.snackbar(
+      AppSnackbar.success(
         'Request Sent',
         'Your mentorship request has been sent to ${alumni.name}',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to send mentorship request',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      AppSnackbar.error('Error', 'Failed to send mentorship request');
     }
   }
 
@@ -198,19 +327,12 @@ class AlumniController extends GetxController {
       // Remove from requests
       _mentorshipRequests.remove(alumniId);
 
-      Get.snackbar(
+      AppSnackbar.info(
         'Request Cancelled',
         'Your mentorship request to ${alumni.name} has been cancelled',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to cancel mentorship request',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      AppSnackbar.error('Error', 'Failed to cancel mentorship request');
     }
   }
 
@@ -233,6 +355,7 @@ class AlumniController extends GetxController {
   // Refresh alumni
   Future<void> refreshAlumni() async {
     await loadAlumni();
+    await loadLikedAlumni();
   }
 
   // Reset filters
@@ -250,6 +373,7 @@ class AlumniController extends GetxController {
       'total': _allAlumni.length,
       'available': _allAlumni.where((a) => a.isAvailableForMentorship).length,
       'filtered': _filteredAlumni.length,
+      'liked': _likedAlumni.length,
     };
   }
 }

@@ -7,6 +7,10 @@ class AppRoutes {
   AppRoutes._();
 
   // ==================== MAIN NAVIGATION ====================
+
+  /// Main navigation wrapper - Contains bottom nav and main pages
+  static const String main = '/main';
+
   /// Home page - Main dashboard
   static const String home = '/';
 
@@ -62,6 +66,12 @@ class AppRoutes {
 
   /// Forgot password page
   static const String forgotPassword = '/forgot-password';
+
+  /// Splash screen (initial loading)
+  static const String splash = '/splash';
+
+  /// OTP Verification page
+  static const String oTPVerification = '/otp-verification';
 
   // ==================== HELPER METHODS ====================
   /// Get alumni detail route with ID

@@ -18,8 +18,8 @@ class LearnController extends GetxController {
   final List<String> chatRooms = ['grade10', 'grade12'];
 
   // Getters
-  List<MessageModel> get grade10Messages => _grade10Messages;
-  List<MessageModel> get grade12Messages => _grade12Messages;
+  List<MessageModel> get grade10Messages => _grade10Messages.toList();
+  List<MessageModel> get grade12Messages => _grade12Messages.toList();
   int get currentTabIndex => _currentTabIndex.value;
   String get currentRoom => chatRooms[_currentTabIndex.value];
   bool get isLoading => _isLoading.value;

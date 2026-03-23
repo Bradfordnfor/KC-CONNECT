@@ -3,86 +3,15 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/config/app_constants.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/features/auth/controllers/signup_controller.dart';
 
-class SignupScreen extends StatefulWidget {
+class SignupScreen extends StatelessWidget {
   const SignupScreen({Key? key}) : super(key: key);
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
-}
-
-class _SignupScreenState extends State<SignupScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-
-  String _selectedRole = 'Student';
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-
-  final List<String> _roles = ['Student', 'Alumni', 'Staff', 'Admin'];
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleSignup() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // TODO: Implement Supabase signup
-      // For Staff/Admin roles, generate OTP and send for approval
-      // if (_selectedRole == 'Staff' || _selectedRole == 'Admin') {
-      //   // Generate OTP and store signup data
-      //   await sendOTPForApproval();
-      //   Get.toNamed('/otp-verification');
-      // } else {
-      //   // Direct signup for Student/Alumni
-      //   await Supabase.instance.client.auth.signUp(
-      //     email: _emailController.text.trim(),
-      //     password: _passwordController.text,
-      //   );
-      //   Get.offAllNamed(AppRoutes.main);
-      // }
-
-      // Mock signup
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (_selectedRole == 'Staff' || _selectedRole == 'Admin') {
-        Get.toNamed(
-          '/otp-verification',
-          arguments: {'email': _emailController.text, 'role': _selectedRole},
-        );
-      } else {
-        Get.offAllNamed('/main');
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Signup Failed',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.white,
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.put(SignupController());
+
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
@@ -90,7 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.blue),
-          onPressed: () => Get.back(),
+          onPressed: controller.goToLogin,
         ),
       ),
       body: SafeArea(
@@ -105,119 +34,104 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 return Container(
                   constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Logo
-                        Center(
-                          child: Container(
-                            width: 70,
-                            height: 70,
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Image.asset(
-                              AppConstants.appIcon,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Logo
+                      Center(
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            AppConstants.logo,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(
                                   Icons.school,
                                   color: AppColors.blue,
                                   size: 35,
-                                );
-                              },
-                            ),
+                                ),
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                        Text(
-                          'Create Account',
-                          style: AppTextStyles.heading.copyWith(
-                            color: AppColors.blue,
-                            fontSize: 26,
-                          ),
-                          textAlign: TextAlign.center,
+                      Text(
+                        'Create Account',
+                        style: AppTextStyles.heading.copyWith(
+                          color: AppColors.blue,
+                          fontSize: 26,
                         ),
+                        textAlign: TextAlign.center,
+                      ),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Name Field
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: InputDecoration(
-                            labelText: 'Full Name',
-                            prefixIcon: const Icon(Icons.person_outline),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.white,
+                      // Name Field
+                      TextFormField(
+                        controller: controller.nameController,
+                        decoration: InputDecoration(
+                          labelText: 'Full Name',
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          validator: (value) =>
-                              value!.isEmpty ? 'Please enter your name' : null,
+                          filled: true,
+                          fillColor: AppColors.white,
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Email Field
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.white,
+                      // Email Field
+                      TextFormField(
+                        controller: controller.emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          validator: (value) {
-                            if (value!.isEmpty)
-                              return 'Please enter your email';
-                            if (!value.contains('@'))
-                              return 'Please enter a valid email';
-                            return null;
-                          },
+                          filled: true,
+                          fillColor: AppColors.white,
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Phone Field
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: InputDecoration(
-                            labelText: 'Phone Number',
-                            prefixIcon: const Icon(Icons.phone_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.white,
+                      // Phone Field
+                      TextFormField(
+                        controller: controller.phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'Phone Number',
+                          prefixIcon: const Icon(Icons.phone_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          validator: (value) => value!.isEmpty
-                              ? 'Please enter your phone number'
-                              : null,
+                          filled: true,
+                          fillColor: AppColors.white,
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Role Dropdown
-                        DropdownButtonFormField<String>(
-                          value: _selectedRole,
+                      // Role Dropdown
+                      Obx(
+                        () => DropdownButtonFormField<String>(
+                          value: controller.selectedRole,
                           decoration: InputDecoration(
                             labelText: 'Role',
                             prefixIcon: const Icon(Icons.work_outline),
@@ -227,34 +141,35 @@ class _SignupScreenState extends State<SignupScreen> {
                             filled: true,
                             fillColor: AppColors.white,
                           ),
-                          items: _roles.map((role) {
-                            return DropdownMenuItem(
-                              value: role,
-                              child: Text(role),
-                            );
-                          }).toList(),
-                          onChanged: (value) =>
-                              setState(() => _selectedRole = value!),
+                          items: controller.roles
+                              .map(
+                                (role) => DropdownMenuItem(
+                                  value: role,
+                                  child: Text(role),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => controller.changeRole(value!),
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Password Field
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
+                      // Password Field
+                      Obx(
+                        () => TextFormField(
+                          controller: controller.passwordController,
+                          obscureText: controller.obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword
+                                controller.obscurePassword
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined,
                               ),
-                              onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              ),
+                              onPressed: controller.togglePasswordVisibility,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -262,34 +177,27 @@ class _SignupScreenState extends State<SignupScreen> {
                             filled: true,
                             fillColor: AppColors.white,
                           ),
-                          validator: (value) {
-                            if (value!.isEmpty)
-                              return 'Please enter a password';
-                            if (value.length < 6)
-                              return 'Password must be at least 6 characters';
-                            return null;
-                          },
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Confirm Password Field
-                        TextFormField(
-                          controller: _confirmPasswordController,
-                          obscureText: _obscureConfirmPassword,
+                      // Confirm Password Field
+                      Obx(
+                        () => TextFormField(
+                          controller: controller.confirmPasswordController,
+                          obscureText: controller.obscureConfirmPassword,
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscureConfirmPassword
+                                controller.obscureConfirmPassword
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined,
                               ),
-                              onPressed: () => setState(
-                                () => _obscureConfirmPassword =
-                                    !_obscureConfirmPassword,
-                              ),
+                              onPressed:
+                                  controller.toggleConfirmPasswordVisibility,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -297,20 +205,18 @@ class _SignupScreenState extends State<SignupScreen> {
                             filled: true,
                             fillColor: AppColors.white,
                           ),
-                          validator: (value) {
-                            if (value != _passwordController.text)
-                              return 'Passwords do not match';
-                            return null;
-                          },
                         ),
+                      ),
 
-                        const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                        // Info Card for Staff/Admin
-                        if (_selectedRole == 'Staff' ||
-                            _selectedRole == 'Admin')
-                          Container(
+                      // Info Card for Staff/Admin
+                      Obx(() {
+                        if (controller.selectedRole == 'Staff' ||
+                            controller.selectedRole == 'Admin') {
+                          return Container(
                             padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 24),
                             decoration: BoxDecoration(
                               color: AppColors.info.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
@@ -325,7 +231,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'OTP verification required for ${_selectedRole.toLowerCase()} role',
+                                    'OTP verification required for ${controller.selectedRole.toLowerCase()} role',
                                     style: AppTextStyles.caption.copyWith(
                                       color: AppColors.info,
                                     ),
@@ -333,22 +239,26 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ),
                               ],
                             ),
-                          ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
 
-                        const SizedBox(height: 24),
-
-                        // Signup Button
-                        SizedBox(
+                      // Signup Button
+                      Obx(
+                        () => SizedBox(
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleSignup,
+                            onPressed: controller.isLoading
+                                ? null
+                                : controller.signup,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.blue,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: _isLoading
+                            child: controller.isLoading
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
@@ -367,33 +277,33 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ),
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Login Link
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Already have an account? ',
+                      // Login Link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Already have an account? ',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: controller.goToLogin,
+                            child: Text(
+                              'Login',
                               style: AppTextStyles.body.copyWith(
-                                color: AppColors.textSecondary,
+                                color: AppColors.blue,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () => Get.back(),
-                              child: Text(
-                                'Login',
-                                style: AppTextStyles.body.copyWith(
-                                  color: AppColors.blue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 );
               },

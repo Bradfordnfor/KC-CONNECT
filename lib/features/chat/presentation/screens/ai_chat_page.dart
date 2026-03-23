@@ -1,55 +1,16 @@
-// lib/features/chat/presentation/screens/ai_chat_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/features/chat/controllers/ai_chat_controller.dart';
 
-class AIChatPage extends StatefulWidget {
+class AIChatPage extends StatelessWidget {
   const AIChatPage({super.key});
 
   @override
-  State<AIChatPage> createState() => _AIChatPageState();
-}
-
-class _AIChatPageState extends State<AIChatPage> {
-  final TextEditingController _messageController = TextEditingController();
-  final List<Map<String, dynamic>> _messages = [];
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add({
-        'text': _messageController.text,
-        'isUser': true,
-        'time': DateTime.now(),
-      });
-      _messageController.clear();
-    });
-
-    // Simulate AI response
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _messages.add({
-            'text':
-                'Thank you for your message! How can I help you learn today?',
-            'isUser': false,
-            'time': DateTime.now(),
-          });
-        });
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.put(AiChatController());
+
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
@@ -101,15 +62,19 @@ class _AIChatPageState extends State<AIChatPage> {
       body: Column(
         children: [
           Expanded(
-            child: _messages.isEmpty ? _buildEmptyState() : _buildMessageList(),
+            child: Obx(
+              () => controller.messages.isEmpty
+                  ? _buildEmptyState(controller)
+                  : _buildMessageList(controller),
+            ),
           ),
-          _buildInputArea(),
+          _buildInputArea(controller),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AiChatController controller) {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -156,14 +121,9 @@ class _AIChatPageState extends State<AIChatPage> {
               spacing: 12,
               runSpacing: 12,
               alignment: WrapAlignment.center,
-              children: [
-                _buildSuggestedPrompt('Help me with Physics'),
-                _buildSuggestedPrompt('Explain Calculus'),
-                _buildSuggestedPrompt('Study tips'),
-                _buildSuggestedPrompt('Career advice'),
-                _buildSuggestedPrompt('Time management'),
-                _buildSuggestedPrompt('Exam preparation'),
-              ],
+              children: controller.suggestedPrompts
+                  .map((prompt) => _buildSuggestedPrompt(controller, prompt))
+                  .toList(),
             ),
           ],
         ),
@@ -171,12 +131,9 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  Widget _buildSuggestedPrompt(String text) {
+  Widget _buildSuggestedPrompt(AiChatController controller, String text) {
     return InkWell(
-      onTap: () {
-        _messageController.text = text;
-        _sendMessage();
-      },
+      onTap: () => controller.sendSuggestedPrompt(text),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
@@ -202,13 +159,13 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(AiChatController controller) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: _messages.length,
+      itemCount: controller.messages.length,
       itemBuilder: (context, index) {
-        final message = _messages[index];
-        return _buildMessageBubble(message['text'], message['isUser']);
+        final message = controller.messages[index];
+        return _buildMessageBubble(message.text, message.isUser);
       },
     );
   }
@@ -219,9 +176,7 @@ class _AIChatPageState extends State<AIChatPage> {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        constraints: BoxConstraints(maxWidth: Get.width * 0.75),
         decoration: BoxDecoration(
           color: isUser ? AppColors.blue : AppColors.white,
           borderRadius: BorderRadius.circular(16),
@@ -244,7 +199,7 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  Widget _buildInputArea() {
+  Widget _buildInputArea(AiChatController controller) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -261,7 +216,7 @@ class _AIChatPageState extends State<AIChatPage> {
         children: [
           Expanded(
             child: TextField(
-              controller: _messageController,
+              controller: controller.messageController,
               decoration: InputDecoration(
                 hintText: 'Ask me anything...',
                 hintStyle: AppTextStyles.body.copyWith(
@@ -291,18 +246,31 @@ class _AIChatPageState extends State<AIChatPage> {
               ),
               maxLines: null,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
+              onSubmitted: (_) => controller.sendMessage(),
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            decoration: BoxDecoration(
-              gradient: AppColors.gradientColor,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.send, color: AppColors.white),
-              onPressed: _sendMessage,
+          Obx(
+            () => Container(
+              decoration: BoxDecoration(
+                gradient: AppColors.gradientColor,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: controller.isSending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: AppColors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.send, color: AppColors.white),
+                onPressed: controller.isSending
+                    ? null
+                    : () => controller.sendMessage(),
+              ),
             ),
           ),
         ],

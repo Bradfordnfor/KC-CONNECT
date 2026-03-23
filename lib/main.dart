@@ -5,8 +5,13 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/routes/app_pages.dart';
 import 'package:kc_connect/core/navigation/main_navigation.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(AuthController(), permanent: true);
+  await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 

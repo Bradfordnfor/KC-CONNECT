@@ -1,75 +1,32 @@
-// lib/features/chat/presentation/screens/learn_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
-import 'package:kc_connect/features/chat/presentation/screens/ai_chat_page.dart';
+import 'package:kc_connect/features/chat/controllers/learn_controller.dart';
 
-class LearnPage extends StatefulWidget {
+class LearnPage extends StatelessWidget {
   const LearnPage({super.key});
 
   @override
-  State<LearnPage> createState() => _LearnPageState();
-}
-
-class _LearnPageState extends State<LearnPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final TextEditingController _messageController = TextEditingController();
-
-  // Mock chat data for Grade 10
-  final List<Map<String, dynamic>> grade10Messages = [
-    {
-      'sender': 'John Kamdem',
-      'message': 'Hey everyone! Anyone studying for the math test?',
-      'time': '10:30 AM',
-      'isMe': false,
-    },
-    {
-      'sender': 'You',
-      'message': 'Yes! I need help with quadratic equations',
-      'time': '10:32 AM',
-      'isMe': true,
-    },
-  ];
-
-  // Mock chat data for Grade 12
-  final List<Map<String, dynamic>> grade12Messages = [
-    {
-      'sender': 'Marie Ngono',
-      'message': 'Who is ready for the physics exam?',
-      'time': '09:15 AM',
-      'isMe': false,
-    },
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.backgroundColor,
-      child: Column(
-        children: [
-          _buildCarouselBanner(),
-          const SizedBox(height: 8),
-          _buildTabBar(),
-          Expanded(child: _buildTabBarView()),
-          _buildInputAreaWithAIButton(),
-        ],
+    final LearnController controller = Get.put(LearnController());
+    // Get.lazyPut(() => LearnController());
+
+    return DefaultTabController(
+      length: 2,
+      child: Material(
+        color: AppColors.backgroundColor,
+        child: Column(
+          children: [
+            _buildCarouselBanner(),
+            const SizedBox(height: 8),
+            _buildTabBar(controller),
+            Expanded(child: _buildTabBarView(controller)),
+            _buildInputAreaWithAIButton(controller),
+          ],
+        ),
       ),
     );
   }
@@ -90,7 +47,6 @@ class _LearnPageState extends State<LearnPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // "chat" badge at top
               Container(
                 alignment: Alignment.center,
                 height: 28,
@@ -110,10 +66,8 @@ class _LearnPageState extends State<LearnPage>
                 ),
               ),
               const SizedBox(height: 12),
-              // Content row
               Row(
                 children: [
-                  // Star badges
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -123,7 +77,6 @@ class _LearnPageState extends State<LearnPage>
                     ],
                   ),
                   const SizedBox(width: 12),
-                  // Text content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +126,7 @@ class _LearnPageState extends State<LearnPage>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(Icons.star, color: AppColors.white, size: 18),
+          const Icon(Icons.star, color: AppColors.white, size: 18),
           Positioned(
             top: 4,
             right: 4,
@@ -201,11 +154,11 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(LearnController controller) {
     return Container(
       color: Colors.transparent,
       child: TabBar(
-        controller: _tabController,
+        onTap: controller.changeTab,
         labelColor: AppColors.red,
         unselectedLabelColor: AppColors.blue,
         indicatorColor: AppColors.red,
@@ -222,17 +175,23 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  Widget _buildTabBarView() {
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        _buildChatView(grade10Messages),
-        _buildChatView(grade12Messages),
-      ],
-    );
+  Widget _buildTabBarView(LearnController controller) {
+    return Obx(() {
+      if (controller.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      return IndexedStack(
+        index: controller.currentTabIndex,
+        children: [
+          _buildChatView(controller, controller.grade10Messages),
+          _buildChatView(controller, controller.grade12Messages),
+        ],
+      );
+    });
   }
 
-  Widget _buildChatView(List<Map<String, dynamic>> messages) {
+  Widget _buildChatView(LearnController controller, List messages) {
     if (messages.isEmpty) {
       return Center(
         child: Column(
@@ -264,13 +223,20 @@ class _LearnPageState extends State<LearnPage>
       itemBuilder: (context, index) {
         final message = messages[index];
         return _buildMessageBubble(
-          message['sender'],
-          message['message'],
-          message['time'],
-          message['isMe'],
+          message.senderName,
+          message.content,
+          _formatTime(message.timestamp),
+          message.isMe,
         );
       },
     );
+  }
+
+  String _formatTime(DateTime timestamp) {
+    final hour = timestamp.hour > 12 ? timestamp.hour - 12 : timestamp.hour;
+    final minute = timestamp.minute.toString().padLeft(2, '0');
+    final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 
   Widget _buildMessageBubble(
@@ -283,9 +249,7 @@ class _LearnPageState extends State<LearnPage>
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        constraints: BoxConstraints(maxWidth: Get.width * 0.75),
         child: Column(
           crossAxisAlignment: isMe
               ? CrossAxisAlignment.end
@@ -345,26 +309,16 @@ class _LearnPageState extends State<LearnPage>
     );
   }
 
-  Widget _buildInputAreaWithAIButton() {
+  Widget _buildInputAreaWithAIButton(LearnController controller) {
     return Container(
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        // boxShadow: [
-        //   BoxShadow(
-        //     color: Colors.black.withOpacity(0.05),
-        //     blurRadius: 8,
-        //     offset: const Offset(0, -2),
-        //   ),
-        // ],
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [
-          // Text input field
           Expanded(
             child: TextField(
-              controller: _messageController,
+              controller: controller.messageController,
               decoration: InputDecoration(
                 hintText: 'Type your message...',
                 hintStyle: AppTextStyles.body.copyWith(
@@ -394,16 +348,10 @@ class _LearnPageState extends State<LearnPage>
               ),
               maxLines: null,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) {
-                // Send message
-                _messageController.clear();
-              },
+              onSubmitted: (text) => controller.sendMessage(text),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Send button
           Container(
             decoration: BoxDecoration(
               gradient: AppColors.gradientColor,
@@ -411,31 +359,24 @@ class _LearnPageState extends State<LearnPage>
             ),
             child: IconButton(
               icon: const Icon(Icons.send, color: AppColors.white),
-              onPressed: () {
-                // Send message
-                _messageController.clear();
-              },
+              onPressed: () =>
+                  controller.sendMessage(controller.messageController.text),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // AI Chat button
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.blue,
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              tooltip: 'Kc connect AI',
+              tooltip: 'KC Connect AI',
               icon: const Icon(
                 Icons.auto_awesome,
                 color: AppColors.white,
                 size: 24,
               ),
-              onPressed: () {
-                Get.toNamed(AppRoutes.aiChat);
-              },
+              onPressed: () => Get.toNamed(AppRoutes.aiChat),
             ),
           ),
         ],

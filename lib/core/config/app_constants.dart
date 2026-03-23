@@ -20,6 +20,7 @@ class AppConstants {
 
   // Image Assets
   static const String appIcon = 'assets/images/kc-connect_icon.png';
+  static const String logo = 'assets/images/kc-connect_full_logo.png';
   static const String defaultAvatar = 'assets/images/default_avatar.png';
 
   // Resource Categories

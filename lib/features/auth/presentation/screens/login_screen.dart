@@ -3,61 +3,15 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/config/app_constants.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/features/auth/controllers/login_controller.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends StatelessWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // TODO: Implement Supabase login
-      // final response = await Supabase.instance.client.auth.signInWithPassword(
-      //   email: _emailController.text.trim(),
-      //   password: _passwordController.text,
-      // );
-      // if (response.session != null) {
-      //   Get.offAllNamed(AppRoutes.main);
-      // }
-
-      // Mock login for now
-      await Future.delayed(const Duration(seconds: 2));
-      Get.offAllNamed('/main');
-    } catch (e) {
-      Get.snackbar(
-        'Login Failed',
-        'Invalid email or password',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error,
-        colorText: AppColors.white,
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.put(LoginController());
+
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       body: SafeArea(
@@ -72,112 +26,96 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 return Container(
                   constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Logo
-                        Center(
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Image.asset(
-                              AppConstants.appIcon,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.school,
-                                  color: AppColors.blue,
-                                  size: 40,
-                                );
-                              },
-                            ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Logo
+                      Center(
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            AppConstants.logo,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(
+                                Icons.school,
+                                color: AppColors.blue,
+                                size: 80,
+                              );
+                            },
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Welcome Text
-                        Text(
-                          'Welcome Back!',
-                          style: AppTextStyles.heading.copyWith(
-                            color: AppColors.blue,
-                            fontSize: 28,
-                          ),
-                          textAlign: TextAlign.center,
+                      Text(
+                        'Welcome Back, KCian!',
+                        style: AppTextStyles.heading.copyWith(
+                          color: AppColors.blue,
+                          fontSize: 28,
                         ),
+                        textAlign: TextAlign.center,
+                      ),
 
-                        const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                        Text(
-                          'Sign in to continue',
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                          textAlign: TextAlign.center,
+                      Text(
+                        'Sign in to continue',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.textSecondary,
                         ),
+                        textAlign: TextAlign.center,
+                      ),
 
-                        const SizedBox(height: 40),
+                      const SizedBox(height: 40),
 
-                        // Email Field
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'Enter your email',
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.white,
+                      // Email Field
+                      TextFormField(
+                        controller: controller.emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          hintText: 'Enter your email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!value.contains('@')) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
+                          filled: true,
+                          fillColor: AppColors.white,
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        // Password Field
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
+                      // Password Field
+                      Obx(
+                        () => TextFormField(
+                          controller: controller.passwordController,
+                          obscureText: controller.obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
                             hintText: 'Enter your password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword
+                                controller.obscurePassword
                                     ? Icons.visibility_outlined
                                     : Icons.visibility_off_outlined,
                               ),
-                              onPressed: () {
-                                setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                );
-                              },
+                              onPressed: controller.togglePasswordVisibility,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -185,50 +123,43 @@ class _LoginScreenState extends State<LoginScreen> {
                             filled: true,
                             fillColor: AppColors.white,
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
-                            return null;
-                          },
                         ),
+                      ),
 
-                        const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                        // Forgot Password
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              Get.toNamed('/forgot-password');
-                            },
-                            child: Text(
-                              'Forgot Password?',
-                              style: AppTextStyles.body.copyWith(
-                                color: AppColors.blue,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      // Forgot Password
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: controller.goToForgotPassword,
+                          child: Text(
+                            'Forgot Password?',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.blue,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                        // Login Button
-                        SizedBox(
+                      // Login Button
+                      Obx(
+                        () => SizedBox(
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleLogin,
+                            onPressed: controller.isLoading
+                                ? null
+                                : controller.login,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.blue,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: _isLoading
+                            child: controller.isLoading
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
@@ -247,35 +178,33 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                        // Sign Up Link
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Don't have an account? ",
+                      // Sign Up Link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Don't have an account? ",
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: controller.goToSignup,
+                            child: Text(
+                              'Sign Up',
                               style: AppTextStyles.body.copyWith(
-                                color: AppColors.textSecondary,
+                                color: AppColors.blue,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                Get.toNamed('/register');
-                              },
-                              child: Text(
-                                'Sign Up',
-                                style: AppTextStyles.body.copyWith(
-                                  color: AppColors.blue,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 );
               },

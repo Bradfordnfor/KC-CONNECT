@@ -2,6 +2,7 @@
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/notification_model.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationsController extends GetxController {
   // Reactive state
@@ -26,20 +27,40 @@ class NotificationsController extends GetxController {
     loadNotifications();
   }
 
-  // Load notifications
+  // Load notifications from Supabase
   Future<void> loadNotifications() async {
     try {
       _isLoading.value = true;
       _errorMessage.value = '';
 
-      // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 500));
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        _allNotifications.clear();
+        _isLoading.value = false;
+        return;
+      }
 
-      // Load mock data (replace with Supabase real-time later)
-      _allNotifications.value = NotificationModel.mockList();
+      final response = await Supabase.instance.client
+          .from('notifications')
+          .select()
+          .or('user_id.eq.$userId,target_role.is.null')
+          .order('created_at', ascending: false);
 
-      // Sort by timestamp (newest first)
-      _allNotifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      _allNotifications.value = (response as List)
+          .map(
+            (n) => NotificationModel(
+              id: n['id'],
+              title: n['title'] ?? '',
+              description: n['message'] ?? '',
+              timestamp:
+                  DateTime.tryParse(n['created_at'] ?? '') ?? DateTime.now(),
+              isRead: n['is_read'] ?? false,
+              type: n['type'] ?? 'system',
+              actionUrl: n['action_url'],
+              metadata: n['metadata'],
+            ),
+          )
+          .toList();
 
       _isLoading.value = false;
     } catch (e) {

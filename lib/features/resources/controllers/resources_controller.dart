@@ -2,7 +2,7 @@
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/resource_model.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Uncomment when ready
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ResourcesController extends GetxController {
   // Reactive state
@@ -65,22 +65,17 @@ class ResourcesController extends GetxController {
   // Load user's favorited resources
   Future<void> loadFavorites() async {
     try {
-      // TODO: Replace with actual Supabase query
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) return;
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) return;
 
-      // final response = await Supabase.instance.client
-      //     .from('user_favorites')
-      //     .select('resource_id')
-      //     .eq('user_id', currentUserId);
+      final response = await Supabase.instance.client
+          .from('user_favorites')
+          .select('resource_id')
+          .eq('user_id', currentUserId);
 
-      // _favoriteResources.value = (response as List)
-      //     .map((item) => item['resource_id'] as String)
-      //     .toList();
-
-      // Mock data for now
-      await Future.delayed(const Duration(milliseconds: 200));
-      _favoriteResources.value = []; // Empty initially
+      _favoriteResources.value = (response as List)
+          .map((item) => item['resource_id'] as String)
+          .toList();
     } catch (e) {
       print('Error loading favorites: $e');
     }
@@ -121,17 +116,13 @@ class ResourcesController extends GetxController {
   // Add resource to favorites (Supabase)
   Future<void> _addFavorite(String resourceId) async {
     try {
-      // TODO: Replace with actual Supabase insert
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) throw Exception('Not authenticated');
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) throw Exception('Not authenticated');
 
-      // await Supabase.instance.client.from('user_favorites').insert({
-      //   'user_id': currentUserId,
-      //   'resource_id': resourceId,
-      // });
-
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Supabase.instance.client.from('user_favorites').insert({
+        'user_id': currentUserId,
+        'resource_id': resourceId,
+      });
     } catch (e) {
       throw Exception('Failed to add favorite: $e');
     }
@@ -140,18 +131,14 @@ class ResourcesController extends GetxController {
   // Remove resource from favorites (Supabase)
   Future<void> _removeFavorite(String resourceId) async {
     try {
-      // TODO: Replace with actual Supabase delete
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) throw Exception('Not authenticated');
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) throw Exception('Not authenticated');
 
-      // await Supabase.instance.client
-      //     .from('user_favorites')
-      //     .delete()
-      //     .eq('user_id', currentUserId)
-      //     .eq('resource_id', resourceId);
-
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Supabase.instance.client
+          .from('user_favorites')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('resource_id', resourceId);
     } catch (e) {
       throw Exception('Failed to remove favorite: $e');
     }

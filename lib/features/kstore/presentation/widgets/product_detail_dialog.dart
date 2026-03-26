@@ -6,6 +6,7 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 import 'package:kc_connect/features/kstore/controllers/store_controller.dart';
+import 'package:kc_connect/features/kstore/presentation/widgets/purchase_bottom_sheet.dart';
 
 class ProductDetailDialog extends StatelessWidget {
   final ProductModel product;
@@ -144,19 +145,15 @@ class ProductDetailDialog extends StatelessWidget {
                   expanded: true,
                   height: 48,
                   onPressed: () {
-                    storeController.addToCart(product.id);
                     Get.back();
-
-                    // Show success message
-                    Get.snackbar(
-                      'Success',
-                      'Added to cart successfully!',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: AppColors.blue,
-                      colorText: AppColors.white,
-                      margin: const EdgeInsets.all(16),
-                      borderRadius: 8,
-                      duration: const Duration(seconds: 2),
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (context) => PurchaseBottomSheet(
+                        price: product.formattedPrice,
+                        productName: product.title,
+                      ),
                     );
                   },
                 ),

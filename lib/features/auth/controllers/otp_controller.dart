@@ -6,8 +6,8 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 class OTPController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
 
-  // Form controller
-  final otpController = TextEditingController();
+  // Form controller - declare as late to initialize in onInit
+  late final TextEditingController otpController;
 
   // Observable state
   final _isLoading = false.obs;
@@ -22,6 +22,7 @@ class OTPController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    otpController = TextEditingController();
     // Get email and role from navigation arguments
     final args = Get.arguments as Map<String, dynamic>?;
     if (args != null) {
@@ -72,18 +73,17 @@ class OTPController extends GetxController {
 
   // Resend OTP
   Future<void> resendOTP() async {
-    try {
-      // TODO: Implement resend OTP
-      // await Supabase.instance.client.rpc('resend_otp', params: {
-      //   'user_email': _email.value,
-      // });
-
-      // Mock resend
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      _showSuccess('OTP resent to your email');
-    } catch (e) {
-      _showError('Failed to resend OTP');
+    if (_email.value.isEmpty) {
+      _showError('No email on record. Please sign up again.');
+      return;
+    }
+    _isLoading.value = true;
+    final success = await _authController.resendOTP(email: _email.value);
+    _isLoading.value = false;
+    if (success) {
+      _showSuccess('A new OTP has been sent to your email');
+    } else {
+      _showError('Failed to resend OTP. Please try again.');
     }
   }
 

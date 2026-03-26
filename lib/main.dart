@@ -4,14 +4,34 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/routes/app_pages.dart';
-import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:app_links/app_links.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Get.put(AuthController(), permanent: true);
   await dotenv.load(fileName: ".env");
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
+  Get.put(AuthController(), permanent: true);
+
+  // Handle deep links for email confirmation
+  final appLinks = AppLinks();
+  final initialLink = await appLinks.getInitialLink();
+  if (initialLink != null) {
+    Supabase.instance.client.auth.getSessionFromUrl(initialLink);
+  }
+
+  // Listen for future deep links
+  appLinks.uriLinkStream.listen((Uri? uri) {
+    if (uri != null) {
+      Supabase.instance.client.auth.getSessionFromUrl(uri);
+    }
+  });
+
   runApp(const MyApp());
 }
 
@@ -42,9 +62,6 @@ class MyApp extends StatelessWidget {
       // Default Transitions
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 300),
-
-      // Home page - Uses MainNavigation wrapper for bottom nav
-      home: MainNavigation(),
 
       // Unknown Route Handler
       unknownRoute: GetPage(

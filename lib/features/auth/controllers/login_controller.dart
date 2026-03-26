@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/config/app_constants.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 
 class LoginController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
 
-  // Form controllers
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  // Form controllers - declare as late to initialize in onInit
+  late final TextEditingController emailController;
+  late final TextEditingController passwordController;
 
   // Observable state
   final _isLoading = false.obs;
@@ -17,6 +18,14 @@ class LoginController extends GetxController {
   // Getters
   bool get isLoading => _isLoading.value;
   bool get obscurePassword => _obscurePassword.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Initialize controllers here to ensure they're fresh
+    emailController = TextEditingController();
+    passwordController = TextEditingController();
+  }
 
   @override
   void onClose() {
@@ -48,8 +57,8 @@ class LoginController extends GetxController {
       return;
     }
 
-    if (passwordController.text.length < 6) {
-      _showError('Password must be at least 6 characters');
+    if (passwordController.text.length < AppConstants.minPasswordLength) {
+      _showError('Password must be at least ${AppConstants.minPasswordLength} characters');
       return;
     }
 

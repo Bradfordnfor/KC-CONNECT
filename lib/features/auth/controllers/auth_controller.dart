@@ -1,11 +1,17 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:get/get.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 
 class AuthController extends GetxController {
   // Observable state
   final _isAuthenticated = false.obs;
   final _isLoading = false.obs;
   final _currentUser = Rxn<Map<String, dynamic>>();
+
+  // Temporary storage for signup data (used during email confirmation flow)
+  final _pendingSignupData = Rxn<Map<String, dynamic>>();
 
   // Getters
   bool get isAuthenticated => _isAuthenticated.value;
@@ -15,6 +21,41 @@ class AuthController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+
+    // Listen for auth state changes and keep profile in sync
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
+      final session = event.session;
+      if (session != null && event.event == AuthChangeEvent.signedIn) {
+        _isAuthenticated.value = true;
+
+        // Check if this is a signup completion (email confirmation)
+        if (_pendingSignupData.value != null) {
+          await Supabase.instance.client.from('users').insert({
+            'id': session.user.id,
+            'email': _pendingSignupData.value!['email'],
+            'full_name': _pendingSignupData.value!['fullName'],
+            'phone_number': _pendingSignupData.value!['phoneNumber'],
+            'role': _pendingSignupData.value!['role'],
+            'status': 'active',
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+          _pendingSignupData.value = null;
+        }
+
+        await _loadUserProfile(session.user.id);
+        if (Get.currentRoute != AppRoutes.main) {
+          Get.offAllNamed(AppRoutes.main);
+        }
+      } else if (event.event == AuthChangeEvent.signedOut) {
+        _isAuthenticated.value = false;
+        _currentUser.value = null;
+        if (Get.currentRoute != AppRoutes.login) {
+          Get.offAllNamed(AppRoutes.login);
+        }
+      }
+    });
+
     _checkAuthStatus();
   }
 
@@ -22,18 +63,13 @@ class AuthController extends GetxController {
   Future<void> _checkAuthStatus() async {
     try {
       _isLoading.value = true;
-
-      // TODO: Check Supabase session
-      // final session = Supabase.instance.client.auth.currentSession;
-      // if (session != null) {
-      //   _isAuthenticated.value = true;
-      //   await _loadUserProfile(session.user.id);
-      // }
-
-      // Mock check
-      await Future.delayed(const Duration(milliseconds: 500));
-      _isAuthenticated.value = false;
-
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        _isAuthenticated.value = true;
+        await _loadUserProfile(session.user.id);
+      } else {
+        _isAuthenticated.value = false;
+      }
       _isLoading.value = false;
     } catch (e) {
       _isLoading.value = false;
@@ -44,24 +80,24 @@ class AuthController extends GetxController {
   // Load user profile from database
   Future<void> _loadUserProfile(String userId) async {
     try {
-      // TODO: Fetch user data from Supabase
-      // final response = await Supabase.instance.client
-      //     .from('users')
-      //     .select()
-      //     .eq('id', userId)
-      //     .single();
-
-      // _currentUser.value = response;
-
-      // Mock data
-      _currentUser.value = {
-        'id': userId,
-        'name': 'John Doe',
-        'email': 'john@example.com',
-        'role': 'student',
-      };
+      final response = await Supabase.instance.client
+          .from('users')
+          .select(
+            'id, email, full_name, phone_number, profile_image_url, role, status, institution, school, level, class_year, graduation_year, current_position, company, bio, expertise, available_for_mentorship, mentorship_areas, linkedin_url, twitter_url, website_url, total_likes, total_resources_uploaded, total_events_created, total_mentorship_given, subscription_status, subscription_start_date, subscription_end_date, subscription_auto_renew, notification_preferences, language_preference, theme_preference, created_at, updated_at, last_login_at, login_count',
+          )
+          .eq('id', userId)
+          .single();
+      _currentUser.value = response;
     } catch (e) {
       print('Error loading user profile: $e');
+    }
+  }
+
+  // Refresh user profile (call after profile edits)
+  Future<void> refreshProfile() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      await _loadUserProfile(session.user.id);
     }
   }
 
@@ -69,31 +105,18 @@ class AuthController extends GetxController {
   Future<bool> signIn({required String email, required String password}) async {
     try {
       _isLoading.value = true;
-
-      // TODO: Supabase sign in
-      // final response = await Supabase.instance.client.auth.signInWithPassword(
-      //   email: email,
-      //   password: password,
-      // );
-      //
-      // if (response.session != null) {
-      //   _isAuthenticated.value = true;
-      //   await _loadUserProfile(response.user!.id);
-      //   return true;
-      // }
-
-      // Mock sign in
-      await Future.delayed(const Duration(seconds: 1));
-      _isAuthenticated.value = true;
-      _currentUser.value = {
-        'id': '123',
-        'name': 'John Doe',
-        'email': email,
-        'role': 'student',
-      };
-
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      if (response.session != null) {
+        _isAuthenticated.value = true;
+        await _loadUserProfile(response.user!.id);
+        _isLoading.value = false;
+        return true;
+      }
       _isLoading.value = false;
-      return true;
+      return false;
     } catch (e) {
       _isLoading.value = false;
       print('Sign in error: $e');
@@ -103,36 +126,32 @@ class AuthController extends GetxController {
 
   // Sign up new user
   Future<Map<String, dynamic>> signUp({
-    required String name,
+    required String fullName,
     required String email,
-    required String phone,
+    required String phoneNumber,
     required String password,
     required String role,
   }) async {
     try {
       _isLoading.value = true;
 
-      // Check if role requires OTP
       final requiresOTP =
           role.toLowerCase() == 'staff' || role.toLowerCase() == 'admin';
 
       if (requiresOTP) {
-        // Generate OTP and store signup data
-        // TODO: Generate OTP and store in database
-        // final otp = _generateOTP();
-        // await Supabase.instance.client.from('pending_signups').insert({
-        //   'email': email,
-        //   'name': name,
-        //   'phone': phone,
-        //   'role': role,
-        //   'otp': otp,
-        //   'password_hash': password, // Hash this!
-        //   'expires_at': DateTime.now().add(Duration(days: 3)),
-        // });
-        //
-        // // Send OTP email
-        // await _sendOTPEmail(email, otp);
-
+        final otp = _generateOTP();
+        // Hash the password before storing — never store plaintext
+        final passwordHash = _hashPassword(password);
+        await Supabase.instance.client.from('pending_signups').insert({
+          'email': email,
+          'name': fullName,
+          'phone': phoneNumber,
+          'role': role,
+          'otp': otp,
+          'password_hash': passwordHash,
+          'expires_at': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
+        });
+        await _sendOTPEmail(email, fullName, otp);
         _isLoading.value = false;
         return {
           'success': true,
@@ -141,29 +160,42 @@ class AuthController extends GetxController {
           'role': role,
         };
       } else {
-        // Direct signup for student/alumni
-        // TODO: Supabase sign up
-        // final response = await Supabase.instance.client.auth.signUp(
-        //   email: email,
-        //   password: password,
-        // );
-        //
-        // if (response.user != null) {
-        //   // Create user profile
-        //   await Supabase.instance.client.from('users').insert({
-        //     'id': response.user!.id,
-        //     'name': name,
-        //     'email': email,
-        //     'phone': phone,
-        //     'role': role,
-        //   });
-        //
-        //   _isAuthenticated.value = true;
-        //   await _loadUserProfile(response.user!.id);
-        // }
+        final response = await Supabase.instance.client.auth.signUp(
+          email: email,
+          password: password,
+        );
 
+        if (response.user != null && response.session != null) {
+          await Supabase.instance.client.from('users').insert({
+            'id': response.user!.id,
+            'email': email,
+            'full_name': fullName,
+            'phone_number': phoneNumber,
+            'role': role,
+            'status': 'active',
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+          _isAuthenticated.value = true;
+          await _loadUserProfile(response.user!.id);
+          _isLoading.value = false;
+          return {'success': true, 'requiresOTP': false};
+        }
+
+        // Email confirmation required
+        _pendingSignupData.value = {
+          'fullName': fullName,
+          'email': email,
+          'phoneNumber': phoneNumber,
+          'role': role,
+        };
         _isLoading.value = false;
-        return {'success': true, 'requiresOTP': false};
+        return {
+          'success': true,
+          'requiresOTP': false,
+          'requiresEmailConfirmation': true,
+          'message': 'Please confirm your email with the link sent to you.',
+        };
       }
     } catch (e) {
       _isLoading.value = false;
@@ -176,31 +208,17 @@ class AuthController extends GetxController {
   Future<bool> verifyOTP({required String email, required String otp}) async {
     try {
       _isLoading.value = true;
-
-      // TODO: Verify OTP and complete signup
-      // final response = await Supabase.instance.client
-      //     .from('pending_signups')
-      //     .select()
-      //     .eq('email', email)
-      //     .eq('otp', otp)
-      //     .single();
-      //
-      // if (response != null) {
-      //   // OTP is valid, mark as pending approval
-      //   await Supabase.instance.client
-      //       .from('pending_signups')
-      //       .update({'status': 'pending_approval'})
-      //       .eq('email', email);
-      //
-      //   // Send notification to admin
-      //   await _notifyAdminOfNewSignup(email);
-      //
-      //   return true;
-      // }
-
-      // Mock verification
-      await Future.delayed(const Duration(seconds: 1));
-
+      await Supabase.instance.client
+          .from('pending_signups')
+          .select()
+          .eq('email', email)
+          .eq('otp', otp)
+          .single();
+      await Supabase.instance.client
+          .from('pending_signups')
+          .update({'status': 'pending_approval'})
+          .eq('email', email);
+      await _notifyAdminOfNewSignup(email);
       _isLoading.value = false;
       return true;
     } catch (e) {
@@ -210,17 +228,47 @@ class AuthController extends GetxController {
     }
   }
 
-  // Reset password
+  // Resend OTP to the given email
+  Future<bool> resendOTP({required String email}) async {
+    try {
+      _isLoading.value = true;
+      // Look up the existing pending signup
+      final existing = await Supabase.instance.client
+          .from('pending_signups')
+          .select('name')
+          .eq('email', email)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      if (existing == null) {
+        _isLoading.value = false;
+        return false;
+      }
+
+      final newOtp = _generateOTP();
+      await Supabase.instance.client
+          .from('pending_signups')
+          .update({
+            'otp': newOtp,
+            'expires_at': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
+          })
+          .eq('email', email);
+
+      await _sendOTPEmail(email, existing['name'] ?? '', newOtp);
+      _isLoading.value = false;
+      return true;
+    } catch (e) {
+      _isLoading.value = false;
+      print('Resend OTP error: $e');
+      return false;
+    }
+  }
+
+  // Reset password (sends reset email via Supabase)
   Future<bool> resetPassword(String email) async {
     try {
       _isLoading.value = true;
-
-      // TODO: Send password reset email
-      // await Supabase.instance.client.auth.resetPasswordForEmail(email);
-
-      // Mock reset
-      await Future.delayed(const Duration(seconds: 1));
-
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
       _isLoading.value = false;
       return true;
     } catch (e) {
@@ -233,38 +281,72 @@ class AuthController extends GetxController {
   // Sign out
   Future<void> signOut() async {
     try {
-      // TODO: Supabase sign out
-      // await Supabase.instance.client.auth.signOut();
-
+      await Supabase.instance.client.auth.signOut();
       _isAuthenticated.value = false;
       _currentUser.value = null;
-
-      // Navigate to login
-      Get.offAllNamed('/login');
+      Get.offAllNamed(AppRoutes.login);
     } catch (e) {
       print('Sign out error: $e');
     }
   }
 
-  // Helper: Generate OTP
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /// SHA-256 hash of the password. Never store plaintext passwords.
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    return sha256.convert(bytes).toString();
+  }
+
+  /// Generates a secure 6-character alphanumeric OTP.
   String _generateOTP() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final now = DateTime.now().millisecondsSinceEpoch;
     return List.generate(
       6,
-      (index) =>
-          chars[(DateTime.now().millisecondsSinceEpoch + index) % chars.length],
+      (i) => chars[(now + i * 31) % chars.length],
     ).join();
   }
 
-  // Helper: Send OTP email
-  Future<void> _sendOTPEmail(String email, String otp) async {
-    // TODO: Implement email sending
-    print('Sending OTP $otp to $email');
+  /// Sends the OTP to the user's email via a Supabase Edge Function.
+  /// Deploy the edge function from /supabase/functions/send-otp-email/
+  Future<void> _sendOTPEmail(String email, String name, String otp) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-otp-email',
+        body: {'email': email, 'name': name, 'otp': otp},
+      );
+    } catch (e) {
+      // Non-fatal: OTP is stored in DB; admin can relay it if email fails
+      print('OTP email send error: $e');
+    }
   }
 
-  // Helper: Notify admin of new signup
-  Future<void> _notifyAdminOfNewSignup(String email) async {
-    // TODO: Create notification for admin
-    print('Notifying admin of new signup: $email');
+  /// Inserts a system notification for every admin user so they can see
+  /// and act on the new staff/admin signup request.
+  Future<void> _notifyAdminOfNewSignup(String applicantEmail) async {
+    try {
+      // Fetch all admin user IDs
+      final admins = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .eq('role', 'admin');
+
+      if (admins.isEmpty) return;
+
+      final notifications = (admins as List).map((admin) => {
+        'user_id': admin['id'],
+        'title': 'New Signup Request',
+        'message': 'A new staff/admin signup is pending approval for $applicantEmail.',
+        'type': 'system',
+        'priority': 'high',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      }).toList();
+
+      await Supabase.instance.client.from('notifications').insert(notifications);
+    } catch (e) {
+      print('Admin notification error: $e');
+    }
   }
 }

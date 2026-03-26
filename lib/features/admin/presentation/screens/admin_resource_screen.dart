@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/core/widgets/common/dialog.dart';
 
 class AdminResourcesPage extends StatelessWidget {
   const AdminResourcesPage({Key? key}) : super(key: key);
@@ -124,7 +125,20 @@ class AdminResourcesPage extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                onPressed: () {},
+                onPressed: () async {
+                  final confirmed = await AppDialog.confirmDelete(
+                    context: context,
+                    title: 'Delete Resource',
+                    message:
+                        'Are you sure you want to delete this resource? This action cannot be undone.',
+                    onConfirm: () async {
+                      // TODO: Implement actual delete with Supabase
+                      // await Supabase.instance.client.from('resources').delete().eq('id', resource['id']);
+                      Navigator.pop(context);
+                      // Optionally refresh resources list
+                    },
+                  );
+                },
               ),
             ],
           ),

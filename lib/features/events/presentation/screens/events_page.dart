@@ -12,6 +12,7 @@ import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
 import 'package:kc_connect/features/events/controllers/events_controller.dart';
 import 'package:kc_connect/features/events/presentation/widgets/add_event_modal.dart';
+import 'package:kc_connect/features/events/presentation/widgets/event_payment_bottom_sheet.dart';
 
 class EventsPage extends StatelessWidget {
   EventsPage({super.key});
@@ -409,10 +410,19 @@ class EventsPage extends StatelessWidget {
                 onPressed: () {
                   if (isRegistered) {
                     controller.unregisterFromEvent(event.id);
+                    Navigator.pop(context);
                   } else {
-                    controller.registerForEvent(event.id);
+                    Navigator.pop(context);
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (context) => EventPaymentBottomSheet(
+                        price: '500',
+                        eventName: event.title,
+                      ),
+                    );
                   }
-                  Navigator.pop(context);
                 },
               );
             }),

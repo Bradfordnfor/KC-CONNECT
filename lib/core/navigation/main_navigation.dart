@@ -8,6 +8,7 @@ import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/bottom_nav_bar.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/features/admin/presentation/screens/admin_navigation_screen.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/home/presentation/screens/home_page.dart';
 import 'package:kc_connect/features/resources/presentation/screens/resources_page.dart';
 import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
@@ -159,20 +160,29 @@ class MainNavigation extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'KC Connect',
-                      style: AppTextStyles.subHeading.copyWith(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Obx(() {
+                      final user = Get.find<AuthController>().currentUser;
+                      return Text(
+                        user?['full_name'] ?? 'KC Connect',
+                        style: AppTextStyles.subHeading.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 4),
-                    Text(
-                      'Welcome back!',
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.white.withOpacity(0.8),
-                      ),
-                    ),
+                    Obx(() {
+                      final user = Get.find<AuthController>().currentUser;
+                      final role = user?['role'] ?? '';
+                      return Text(
+                        role.isNotEmpty
+                            ? role[0].toUpperCase() + role.substring(1)
+                            : 'Welcome back!',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.white.withValues(alpha: 0.8),
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -250,22 +260,25 @@ class MainNavigation extends StatelessWidget {
                       textColor: AppColors.red,
                       onTap: () {
                         Navigator.pop(context);
-                        // Will be implemented with authentication
-                        _showLogoutDialog();
+                        _showLogoutDialog(context);
                       },
                     ),
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.admin_panel_settings,
-                      title: 'Admin Panel',
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Add permission check when auth is ready
-                        // if (Permissions.canAccessAdmin()) {
-                        Get.to(() => AdminMainPage());
-                        // }
-                      },
-                    ),
+                    Obx(() {
+                      final authController = Get.find<AuthController>();
+                      final role = authController.currentUser?['role'] ?? '';
+                      if (role != 'admin' && role != 'staff') {
+                        return const SizedBox.shrink();
+                      }
+                      return _buildDrawerItem(
+                        context,
+                        icon: Icons.admin_panel_settings,
+                        title: 'Admin Panel',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Get.to(() => AdminMainPage());
+                        },
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -293,16 +306,12 @@ class MainNavigation extends StatelessWidget {
         ),
       ),
       onTap: onTap,
-      hoverColor: AppColors.white.withOpacity(0.1),
+      hoverColor: AppColors.white.withValues(alpha: 0.1),
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }
 
-  void _showLogoutDialog() {
-    _showLogoutDialogStatic(Get.context!);
-  }
-
-  static void _showLogoutDialogStatic(BuildContext context) {
+  void _showLogoutDialog(BuildContext context) {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -320,7 +329,9 @@ class MainNavigation extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Are you sure you want to logout?',
-                style: AppTextStyles.body.copyWith(color: Colors.grey[600]),
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -348,15 +359,7 @@ class MainNavigation extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         Get.back();
-                        // TODO: Implement actual logout logic
-                        Get.snackbar(
-                          'Logged Out',
-                          'You have been logged out successfully',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.blue,
-                          colorText: AppColors.white,
-                          margin: const EdgeInsets.all(16),
-                        );
+                        Get.find<AuthController>().signOut();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.red,

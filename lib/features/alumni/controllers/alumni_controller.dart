@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
 import 'package:kc_connect/core/widgets/common/snackbar.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AlumniController extends GetxController {
   // Reactive state
@@ -61,22 +61,17 @@ class AlumniController extends GetxController {
   // Load alumni that current user has liked
   Future<void> loadLikedAlumni() async {
     try {
-      // TODO: Replace with actual Supabase query
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) return;
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) return;
 
-      // final response = await Supabase.instance.client
-      //     .from('alumni_likes')
-      //     .select('alumni_id')
-      //     .eq('user_id', currentUserId);
+      final response = await Supabase.instance.client
+          .from('alumni_likes')
+          .select('alumni_id')
+          .eq('user_id', currentUserId);
 
-      // _likedAlumni.value = (response as List)
-      //     .map((item) => item['alumni_id'] as String)
-      //     .toList();
-
-      // Mock data for now
-      await Future.delayed(const Duration(milliseconds: 200));
-      _likedAlumni.value = []; // Empty initially
+      _likedAlumni.value = (response as List)
+          .map((item) => item['alumni_id'] as String)
+          .toList();
     } catch (e) {
       print('Error loading liked alumni: $e');
     }
@@ -85,23 +80,19 @@ class AlumniController extends GetxController {
   // Load like counts for all alumni
   Future<void> _loadLikeCounts() async {
     try {
-      // TODO: Replace with actual Supabase query
-      // final response = await Supabase.instance.client
-      //     .from('users')
-      //     .select('id, total_likes')
-      //     .in_('id', _allAlumni.map((a) => a.id).toList());
+      final alumniIds = _allAlumni.map((a) => a.id).toList();
+      if (alumniIds.isEmpty) {
+        _alumniLikeCounts.value = {};
+        return;
+      }
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('id, total_likes')
+          .inFilter('id', alumniIds);
 
-      // final counts = <String, int>{};
-      // for (final row in response as List) {
-      //   counts[row['id']] = row['total_likes'] ?? 0;
-      // }
-      // _alumniLikeCounts.value = counts;
-
-      // Mock data for now
-      await Future.delayed(const Duration(milliseconds: 200));
       final counts = <String, int>{};
-      for (final alumni in _allAlumni) {
-        counts[alumni.id] = 0; // Start with 0 likes
+      for (final row in response as List) {
+        counts[row['id']] = row['total_likes'] ?? 0;
       }
       _alumniLikeCounts.value = counts;
     } catch (e) {
@@ -151,19 +142,13 @@ class AlumniController extends GetxController {
   // Like alumni (Supabase)
   Future<void> _likeAlumni(String alumniId) async {
     try {
-      // TODO: Replace with actual Supabase insert
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) throw Exception('Not authenticated');
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) throw Exception('Not authenticated');
 
-      // await Supabase.instance.client.from('alumni_likes').insert({
-      //   'user_id': currentUserId,
-      //   'alumni_id': alumniId,
-      // });
-
-      // Trigger will auto-increment total_likes in users table
-
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Supabase.instance.client.from('alumni_likes').insert({
+        'user_id': currentUserId,
+        'alumni_id': alumniId,
+      });
     } catch (e) {
       throw Exception('Failed to like alumni: $e');
     }
@@ -172,20 +157,14 @@ class AlumniController extends GetxController {
   // Unlike alumni (Supabase)
   Future<void> _unlikeAlumni(String alumniId) async {
     try {
-      // TODO: Replace with actual Supabase delete
-      // final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      // if (currentUserId == null) throw Exception('Not authenticated');
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) throw Exception('Not authenticated');
 
-      // await Supabase.instance.client
-      //     .from('alumni_likes')
-      //     .delete()
-      //     .eq('user_id', currentUserId)
-      //     .eq('alumni_id', alumniId);
-
-      // Trigger will auto-decrement total_likes in users table
-
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Supabase.instance.client
+          .from('alumni_likes')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('alumni_id', alumniId);
     } catch (e) {
       throw Exception('Failed to unlike alumni: $e');
     }

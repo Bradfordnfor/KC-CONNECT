@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Uncomment when ready
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminDashboardController extends GetxController {
   // Reactive state
@@ -73,16 +73,66 @@ class AdminDashboardController extends GetxController {
 
   // Refresh dashboard
   Future<void> refreshDashboard() async {
-    await loadDashboardData();
-  }
+    try {
+      _isLoading.value = true;
 
-  // Get user distribution
-  Map<String, int> getUserDistribution() {
-    return {
-      'Students': _studentCount.value,
-      'Alumni': _alumniCount.value,
-      'Staff': _staffCount.value,
-      'Admin': _adminCount.value,
-    };
+      // Use Supabase queries
+      final usersData = await Supabase.instance.client
+          .from('users')
+          .select('role');
+      final resourcesData = await Supabase.instance.client
+          .from('resources')
+          .select('id');
+      final eventsData = await Supabase.instance.client
+          .from('events')
+          .select('id');
+      final productsData = await Supabase.instance.client
+          .from('products')
+          .select('id');
+      final otpsData = await Supabase.instance.client
+          .from('otps')
+          .select('id, status')
+          .eq('status', 'pending');
+      final revenueData = await Supabase.instance.client
+          .from('payments')
+          .select('amount');
+
+      int student = 0, alumni = 0, staff = 0, admin = 0;
+      for (final user in usersData as List) {
+        switch (user['role']) {
+          case 'student':
+            student++;
+            break;
+          case 'alumni':
+            alumni++;
+            break;
+          case 'staff':
+            staff++;
+            break;
+          case 'admin':
+            admin++;
+            break;
+        }
+      }
+      _studentCount.value = student;
+      _alumniCount.value = alumni;
+      _staffCount.value = staff;
+      _adminCount.value = admin;
+      _totalUsers.value = student + alumni + staff + admin;
+      _totalResources.value = (resourcesData as List).length;
+      _totalEvents.value = (eventsData as List).length;
+      _totalProducts.value = (productsData as List).length;
+      _pendingOTPs.value = (otpsData as List).length;
+      double revenue = 0.0;
+      for (final payment in revenueData as List) {
+        revenue += (payment['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+      _monthlyRevenue.value = revenue;
+
+      _isLoading.value = false;
+    } catch (e) {
+      _isLoading.value = false;
+      print('Error loading dashboard data: $e');
+    }
   }
 }

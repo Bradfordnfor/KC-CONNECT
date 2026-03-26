@@ -1,0 +1,486 @@
+1. users
+
+Columns:
+
+id (uuid, primary key, foreign key → auth.users.id)
+
+email, full_name (text)
+
+phone_number (text)
+
+profile_image_url (text)
+
+role (text: student, alumni, staff, admin)
+
+status (text: active, suspended, inactive; default active)
+
+institution (text, default Knowledge College)
+
+school (text), level (text: O/L, A/L, graduated, other)
+
+class_year (text), graduation_year (integer)
+
+current_position (text), company (text), bio (text)
+
+expertise (ARRAY)
+
+available_for_mentorship (boolean, default false)
+
+mentorship_areas (ARRAY)
+
+linkedin_url, twitter_url, website_url (text)
+
+total_likes, total_resources_uploaded, total_events_created, total_mentorship_given (integer, default 0)
+
+subscription_status (text: free, premium, trial; default free)
+
+subscription_start_date, subscription_end_date (timestamps)
+
+subscription_auto_renew (boolean, default false)
+
+notification_preferences (jsonb, default '{"push":true,"email":true,"events":true,"resources":false}')
+
+language_preference (text: English, French, Pidgin; default English)
+
+theme_preference (text: light, dark; default light)
+
+created_at, updated_at, last_login_at (timestamps)
+
+login_count (integer, default 0)
+
+search_vector (tsvector)
+
+2. user_signup_pending
+
+Columns:
+
+id (uuid, primary key)
+
+email (text, unique)
+
+role (text: staff, admin, alumni)
+
+signup_data (jsonb)
+
+status (text: pending, otp_sent, approved, rejected; default pending)
+
+requires_otp (boolean, default false)
+
+otp_id (uuid, foreign key → pending_signups.id)
+
+profile_completed (boolean, default false)
+
+rejected_by (uuid, foreign key → users.id)
+
+rejected_at, expires_at, created_at, updated_at (timestamps)
+
+rejection_reason (text)
+
+3. user_favorites
+
+Columns:
+
+id (uuid, primary key)
+
+user_id (uuid, foreign key → users.id)
+
+resource_id (uuid, foreign key → resources.id)
+
+created_at (timestamp)
+
+
+4. resources
+
+Columns:
+
+id (uuid, primary key)
+
+title, description, subject, category (text; category: O/L, A/L, Other Books)
+
+file_url, file_name, file_type (text; file_type: pdf, docx, doc, pptx, xlsx)
+
+file_size (bigint, ≤52428800)
+
+thumbnail_url (text)
+
+upload_type (text: past_paper, notes, textbook, guide, other)
+
+year (integer), exam_board (text)
+
+uploaded_by (uuid, foreign key → users.id)
+
+uploader_name, uploader_role (text: alumni, staff, admin)
+
+status (text: active, archived, deleted; default active)
+
+download_count, view_count, favorite_count (integer, default 0)
+
+created_at, updated_at (timestamps)
+
+search_vector (tsvector)
+
+5. products
+
+Columns:
+
+id (uuid, primary key)
+
+name, description (text)
+
+category (text: uniforms, books, stationery, accessories, electronics, other)
+
+price, compare_at_price (numeric)
+
+currency (text, default XAF)
+
+stock_quantity, low_stock_threshold (integer)
+
+sku, slug (text, unique)
+
+primary_image_url, images (text/ARRAY)
+
+status (text: active, inactive, out_of_stock, archived; default active)
+
+is_featured (boolean)
+
+sizes, colors, tags (ARRAY)
+
+created_by, updated_by (uuid, foreign keys → users.id)
+
+created_at, updated_at (timestamps)
+
+search_vector (tsvector)
+
+6. notifications
+
+Columns:
+
+id (uuid, primary key)
+
+user_id (uuid, foreign key → users.id)
+
+title, message (text)
+
+type (text: event, resource, message, system, achievement, mentorship, announcement)
+
+is_read (boolean, default false)
+
+read_at (timestamp)
+
+action_type (text), action_id (uuid), action_url (text), icon (text), color (text)
+
+priority (text: low, normal, high, urgent; default normal)
+
+created_at, expires_at (timestamps)
+
+7. orders
+
+Columns:
+
+id (uuid, primary key)
+
+user_id (uuid, foreign key → users.id)
+
+order_number (text, unique)
+
+status (text: pending, processing, shipped, delivered, cancelled, refunded; default pending)
+
+subtotal, tax, shipping_cost, discount, total (numeric)
+
+currency (text, default XAF)
+
+payment_status (text: pending, paid, failed, refunded; default pending)
+
+payment_method (text: mtn_mobile_money, orange_money, cash_on_delivery)
+
+payment_reference, payment_phone_number (text)
+
+paid_at, ordered_at, shipped_at, delivered_at, cancelled_at (timestamps)
+
+customer_notes, admin_notes (text)
+
+processed_by (uuid, foreign key → users.id)
+
+created_at, updated_at (timestamps)
+
+8. order_items
+
+Columns:
+
+id (uuid, primary key)
+
+order_id (uuid, foreign key → orders.id)
+
+product_id (uuid, foreign key → products.id)
+
+product_name (text)
+
+product_sku (text)
+
+unit_price (numeric)
+
+quantity (integer, >0)
+
+subtotal (numeric)
+
+selected_size, selected_color (text)
+
+created_at (timestamp)
+
+9. pending_signups
+
+Columns:
+
+id (uuid, primary key)
+
+otp (text, unique)
+
+purpose (text: admin_signup, staff_signup)
+
+email, name (text)
+
+created_by, used_by (uuid, foreign keys → users.id)
+
+notified_at, used_at, expires_at, created_at (timestamps)
+
+is_active (boolean, default true)
+
+password_hash (varchar)
+
+phone (varchar)
+
+role (text)
+
+10. feedback
+
+Columns:
+
+id (uuid, primary key)
+
+user_id (uuid, foreign key → users.id)
+
+type (text: feedback, bug_report, feature_request, other)
+
+subject, message (text)
+
+status (text: new, in_review, resolved, dismissed; default new)
+
+priority (text: low, normal, high, urgent; default normal)
+
+admin_response (text)
+
+responded_by (uuid, foreign key → users.id)
+
+responded_at (timestamp)
+
+app_version (text)
+
+device_info (jsonb)
+
+created_at, updated_at (timestamp)
+
+11. mentorship_requests
+
+Columns:
+
+id (uuid, primary key)
+
+student_id, mentor_id (uuid, foreign keys → users.id)
+
+status (text: pending, accepted, declined, completed, cancelled; default pending)
+
+message, response_message (text)
+
+topics (ARRAY)
+
+preferred_method (text: online, in_person, flexible)
+
+requested_at, responded_at, completed_at, created_at, updated_at (timestamps)
+
+12. messages
+
+Columns:
+
+id (uuid, primary key)
+
+content (text)
+
+message_type (text: text, image, file, link; default text)
+
+room (text: grade_10, grade_12)
+
+sender_id (uuid, foreign key → users.id)
+
+sender_name, sender_role (text)
+
+is_deleted, is_edited, is_flagged, is_pinned (boolean)
+
+deleted_at, edited_at, created_at, updated_at (timestamps)
+
+media_url, media_type, flagged_reason, pinned_by (text/uuid)
+
+13. activity_logs
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+user_id (uuid, foreign key → users.id)
+
+activity_type (text, limited to predefined values like 'login', 'logout', etc.)
+
+entity_type (text)
+
+entity_id (uuid)
+
+metadata (jsonb)
+
+ip_address (inet)
+
+user_agent (text)
+
+created_at (timestamp with time zone, default now())
+
+14. alumni_likes
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+user_id (uuid, foreign key → users.id)
+
+alumni_id (uuid, foreign key → users.id)
+
+created_at (timestamp with time zone, default now())
+
+15. app_settings
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+key (text, unique)
+
+value (jsonb)
+
+description (text)
+
+updated_by (uuid, foreign key → users.id)
+
+updated_at (timestamp with time zone, default now())
+
+created_at (timestamp with time zone, default now())
+
+16. downloads
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+user_id (uuid, foreign key → users.id)
+
+resource_id (uuid, foreign key → resources.id)
+
+download_date (timestamp with time zone, default now())
+
+ip_address (inet)
+
+user_agent (text)
+
+created_at (timestamp with time zone, default now())
+
+17. events
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+title (text)
+
+description (text)
+
+event_type (text, limited: workshop, seminar, lesson, social, webinar)
+
+start_date (timestamp with time zone)
+
+end_date (timestamp with time zone)
+
+duration_minutes (integer)
+
+location_type (text: physical, virtual, hybrid)
+
+venue (text)
+
+virtual_link (text)
+
+host_name (text)
+
+host_organization (text)
+
+organized_by (uuid, foreign key → users.id)
+
+organizer_role (text: alumni, staff, admin)
+
+requires_registration (boolean, default true)
+
+registration_deadline (timestamp with time zone)
+
+max_capacity (integer)
+
+current_registrations (integer, default 0)
+
+registration_fee (numeric, default 0.00)
+
+banner_image_url (text)
+
+poster_url (text)
+
+images (ARRAY)
+
+status (text: draft, upcoming, ongoing, completed, cancelled; default upcoming)
+
+visibility (text: public, private, alumni_only, students_only; default public)
+
+is_featured (boolean, default false)
+
+view_count (integer, default 0)
+
+share_count (integer, default 0)
+
+tags (ARRAY)
+
+target_audience (ARRAY)
+
+created_at, updated_at (timestamp with time zone, default now())
+
+search_vector (tsvector, full-text search)
+
+18. event_registrations
+
+Columns:
+
+id (uuid, primary key, default gen_random_uuid())
+
+event_id (uuid, foreign key → events.id)
+
+user_id (uuid, foreign key → users.id)
+
+status (text: registered, attended, cancelled, no_show; default registered)
+
+registration_date, attended_at, cancelled_at (timestamps)
+
+cancellation_reason (text)
+
+notes (text)
+
+payment_status (text: not_required, pending, paid, refunded; default not_required)
+
+payment_method (text: mtn_mobile_money, orange_money, cash, free)
+
+payment_reference (text)
+
+payment_phone_number (text)
+
+reminder_sent, confirmation_sent (boolean, default false)
+
+created_at, updated_at (timestamp with time zone, default now())

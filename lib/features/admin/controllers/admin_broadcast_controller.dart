@@ -1,7 +1,7 @@
 // lib/controllers/admin/admin_broadcast_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Uncomment when ready
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminBroadcastController extends GetxController {
   final _selectedAudiences = <String>[].obs;
@@ -60,19 +60,23 @@ class AdminBroadcastController extends GetxController {
         targetRoles = _selectedAudiences.map((a) => a.toLowerCase()).toList();
       }
 
-      // TODO: Insert notifications for target users
-      // await Supabase.instance.client.from('notifications').insert(
-      //   targetRoles.map((role) => {
-      //     'title': title,
-      //     'message': message,
-      //     'type': 'announcement',
-      //     'target_role': role,
-      //     'created_by': currentAdminId,
-      //   }).toList(),
-      // );
-
-      // Mock send
-      await Future.delayed(const Duration(seconds: 1));
+      // Insert notifications for target users
+      final currentAdminId = Supabase.instance.client.auth.currentUser?.id;
+      await Supabase.instance.client
+          .from('notifications')
+          .insert(
+            targetRoles
+                .map(
+                  (role) => {
+                    'title': title,
+                    'message': message,
+                    'type': 'announcement',
+                    'target_role': role,
+                    'created_by': currentAdminId,
+                  },
+                )
+                .toList(),
+          );
 
       _isSending.value = false;
 

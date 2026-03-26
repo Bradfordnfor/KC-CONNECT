@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Uncomment when ready
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OTPRequest {
   final String id;
@@ -54,38 +54,21 @@ class AdminOTPController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // TODO: Replace with actual Supabase query
-      // final response = await Supabase.instance.client
-      //     .rpc('get_pending_otps')
-      //     .execute();
+      final response = await Supabase.instance.client.rpc('get_pending_otps');
 
-      // Mock data for now
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      _pendingOTPs.value = [
-        OTPRequest(
-          id: '1',
-          otpCode: 'ABC123',
-          userName: 'John Doe',
-          userEmail: 'john@example.com',
-          userPhone: '+237612345678',
-          userRole: 'staff',
-          createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-          expiresAt: DateTime.now().add(const Duration(days: 2, hours: 22)),
-          signupData: {},
-        ),
-        OTPRequest(
-          id: '2',
-          otpCode: 'XYZ789',
-          userName: 'Jane Smith',
-          userEmail: 'jane@example.com',
-          userPhone: '+237698765432',
-          userRole: 'admin',
-          createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-          expiresAt: DateTime.now().add(const Duration(days: 2, hours: 19)),
-          signupData: {},
-        ),
-      ];
+      _pendingOTPs.value = (response as List).map((item) {
+        return OTPRequest(
+          id: item['id'].toString(),
+          otpCode: item['otp_code'] ?? '',
+          userName: item['user_name'] ?? '',
+          userEmail: item['user_email'] ?? '',
+          userPhone: item['user_phone'] ?? '',
+          userRole: item['user_role'] ?? '',
+          createdAt: DateTime.parse(item['created_at']),
+          expiresAt: DateTime.parse(item['expires_at']),
+          signupData: item['signup_data'] ?? {},
+        );
+      }).toList();
 
       _isLoading.value = false;
     } catch (e) {
@@ -97,18 +80,13 @@ class AdminOTPController extends GetxController {
   // Approve OTP request
   Future<void> approveOTP(String otpId, String userName) async {
     try {
-      // TODO: Call Supabase function
-      // await Supabase.instance.client
-      //     .rpc('approve_otp', params: {'otp_id': otpId})
-      //     .execute();
+      await Supabase.instance.client.rpc(
+        'approve_otp',
+        params: {'otp_id': otpId},
+      );
 
-      // Mock approval
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Remove from list
       _pendingOTPs.removeWhere((otp) => otp.id == otpId);
 
-      // TODO: Send email notification to user
       AppSnackbar.success(
         'Approved',
         'OTP approved for $userName. Email notification sent.',
@@ -129,21 +107,13 @@ class AdminOTPController extends GetxController {
         return;
       }
 
-      // TODO: Call Supabase function
-      // await Supabase.instance.client
-      //     .rpc('reject_signup', params: {
-      //       'otp_id': otpId,
-      //       'reason': reason,
-      //     })
-      //     .execute();
+      await Supabase.instance.client.rpc(
+        'reject_signup',
+        params: {'otp_id': otpId, 'reason': reason},
+      );
 
-      // Mock rejection
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Remove from list
       _pendingOTPs.removeWhere((otp) => otp.id == otpId);
 
-      // TODO: Send email notification to user
       AppSnackbar.success(
         'Rejected',
         'Signup rejected for $userName. Email notification sent.',

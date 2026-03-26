@@ -6,14 +6,20 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 class ForgotPasswordController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
 
-  // Form controller
-  final emailController = TextEditingController();
+  // Form controller - declare as late to initialize in onInit
+  late final TextEditingController emailController;
 
   // Observable state
   final _isLoading = false.obs;
 
   // Getters
   bool get isLoading => _isLoading.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    emailController = TextEditingController();
+  }
 
   @override
   void onClose() {

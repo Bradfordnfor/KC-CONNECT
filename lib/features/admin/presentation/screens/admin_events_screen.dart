@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/core/widgets/common/dialog.dart';
 
 class AdminEventsPage extends StatelessWidget {
   const AdminEventsPage({Key? key}) : super(key: key);
@@ -80,19 +81,24 @@ class AdminEventsPage extends StatelessWidget {
                   ),
                   IconButton(
                     icon: const Icon(
-                      Icons.edit_outlined,
-                      color: AppColors.blue,
-                      size: 20,
-                    ),
-                    onPressed: () {},
-                  ),
-                  IconButton(
-                    icon: const Icon(
                       Icons.delete_outline,
                       color: AppColors.error,
                       size: 20,
                     ),
-                    onPressed: () {},
+                    onPressed: () async {
+                      final confirmed = await AppDialog.confirmDelete(
+                        context: context,
+                        title: 'Delete Event',
+                        message:
+                            'Are you sure you want to delete this event? This action cannot be undone.',
+                        onConfirm: () async {
+                          // TODO: Implement actual delete with Supabase
+                          // await Supabase.instance.client.from('events').delete().eq('id', event['id']);
+                          Navigator.pop(context);
+                          // Optionally refresh events list
+                        },
+                      );
+                    },
                   ),
                 ],
               ),

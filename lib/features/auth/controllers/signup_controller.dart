@@ -1,18 +1,19 @@
 // lib/features/auth/controllers/signup_controller.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/config/app_constants.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 
 class SignupController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
 
-  // Form controllers
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final phoneController = TextEditingController();
-  final passwordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
+  // Form controllers - declare as late to initialize in onInit
+  late final TextEditingController nameController;
+  late final TextEditingController emailController;
+  late final TextEditingController phoneController;
+  late final TextEditingController passwordController;
+  late final TextEditingController confirmPasswordController;
 
   // Observable state
   final _isLoading = false.obs;
@@ -27,6 +28,16 @@ class SignupController extends GetxController {
   String get selectedRole => _selectedRole.value;
 
   final List<String> roles = ['Student', 'Alumni', 'Staff', 'Admin'];
+
+  @override
+  void onInit() {
+    super.onInit();
+    nameController = TextEditingController();
+    emailController = TextEditingController();
+    phoneController = TextEditingController();
+    passwordController = TextEditingController();
+    confirmPasswordController = TextEditingController();
+  }
 
   @override
   void onClose() {
@@ -74,8 +85,8 @@ class SignupController extends GetxController {
       return 'Please enter a password';
     }
 
-    if (passwordController.text.length < 6) {
-      return 'Password must be at least 6 characters';
+    if (passwordController.text.length < AppConstants.minPasswordLength) {
+      return 'Password must be at least ${AppConstants.minPasswordLength} characters';
     }
 
     if (confirmPasswordController.text != passwordController.text) {
@@ -98,9 +109,9 @@ class SignupController extends GetxController {
 
     try {
       final result = await _authController.signUp(
-        name: nameController.text.trim(),
+        fullName: nameController.text.trim(),
         email: emailController.text.trim(),
-        phone: phoneController.text.trim(),
+        phoneNumber: phoneController.text.trim(),
         password: passwordController.text,
         role: _selectedRole.value,
       );
@@ -115,6 +126,12 @@ class SignupController extends GetxController {
               'role': _selectedRole.value,
             },
           );
+        } else if (result['requiresEmailConfirmation'] == true) {
+          _showSuccess(
+            result['message'] ?? 'Confirm your email to complete signup.',
+          );
+          // Don't navigate here - let the auth state change listener handle navigation
+          // after email confirmation
         } else {
           // Direct signup success
           Get.offAllNamed('/main');

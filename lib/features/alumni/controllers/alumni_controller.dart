@@ -4,7 +4,6 @@ import 'package:kc_connect/core/widgets/common/snackbar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AlumniController extends GetxController {
-  // Reactive state
   final _allAlumni = <AlumniModel>[].obs;
   final _filteredAlumni = <AlumniModel>[].obs;
   final _searchQuery = ''.obs;
@@ -13,12 +12,10 @@ class AlumniController extends GetxController {
   final _showOnlyAvailable = false.obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
-  final _mentorshipRequests =
-      <String>[].obs; // Alumni IDs with pending requests
-  final _likedAlumni = <String>[].obs; // Alumni IDs that current user liked
-  final _alumniLikeCounts = <String, int>{}.obs; // Alumni ID -> like count
+  final _mentorshipRequests = <String>[].obs; // mentor IDs with pending requests
+  final _likedAlumni = <String>[].obs;
+  final _alumniLikeCounts = <String, int>{}.obs;
 
-  // Getters
   List<AlumniModel> get allAlumni => _allAlumni;
   List<AlumniModel> get filteredAlumni => _filteredAlumni;
   String get searchQuery => _searchQuery.value;
@@ -32,33 +29,40 @@ class AlumniController extends GetxController {
   void onInit() {
     super.onInit();
     loadAlumni();
-    loadLikedAlumni();
   }
 
-  // Load alumni
   Future<void> loadAlumni() async {
     try {
       _isLoading.value = true;
       _errorMessage.value = '';
 
-      // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Load mock data (replace with Supabase later)
-      _allAlumni.value = AlumniModel.mockList();
-      _applyFilters();
-
-      // Load like counts for each alumni
-      await _loadLikeCounts();
+      await Future.wait([
+        _fetchAlumni(),
+        loadLikedAlumni(),
+        _loadPendingMentorshipRequests(),
+      ]);
 
       _isLoading.value = false;
     } catch (e) {
-      _errorMessage.value = 'Failed to load alumni: ${e.toString()}';
+      _errorMessage.value = 'Failed to load alumni';
       _isLoading.value = false;
     }
   }
 
-  // Load alumni that current user has liked
+  Future<void> _fetchAlumni() async {
+    final response = await Supabase.instance.client
+        .from('users')
+        .select()
+        .eq('role', 'alumni')
+        .eq('status', 'active')
+        .order('full_name');
+
+    _allAlumni.value =
+        (response as List).map((r) => _fromRow(r as Map<String, dynamic>)).toList();
+    await _loadLikeCounts();
+    _applyFilters();
+  }
+
   Future<void> loadLikedAlumni() async {
     try {
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -69,15 +73,31 @@ class AlumniController extends GetxController {
           .select('alumni_id')
           .eq('user_id', currentUserId);
 
-      _likedAlumni.value = (response as List)
-          .map((item) => item['alumni_id'] as String)
-          .toList();
+      _likedAlumni.value =
+          (response as List).map((item) => item['alumni_id'] as String).toList();
     } catch (e) {
       print('Error loading liked alumni: $e');
     }
   }
 
-  // Load like counts for all alumni
+  Future<void> _loadPendingMentorshipRequests() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final response = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('mentor_id')
+          .eq('student_id', userId)
+          .eq('status', 'pending');
+
+      _mentorshipRequests.value =
+          (response as List).map((r) => r['mentor_id'] as String).toList();
+    } catch (e) {
+      print('Error loading mentorship requests: $e');
+    }
+  }
+
   Future<void> _loadLikeCounts() async {
     try {
       final alumniIds = _allAlumni.map((a) => a.id).toList();
@@ -100,124 +120,91 @@ class AlumniController extends GetxController {
     }
   }
 
-  // Check if current user liked an alumni
-  bool isAlumniLiked(String alumniId) {
-    return _likedAlumni.contains(alumniId);
-  }
+  bool isAlumniLiked(String alumniId) => _likedAlumni.contains(alumniId);
 
-  // Get like count for an alumni
-  int getAlumniLikeCount(String alumniId) {
-    return _alumniLikeCounts[alumniId] ?? 0;
-  }
+  int getAlumniLikeCount(String alumniId) => _alumniLikeCounts[alumniId] ?? 0;
 
-  // Toggle like/unlike
   Future<void> toggleLike(String alumniId) async {
     try {
       final isCurrentlyLiked = isAlumniLiked(alumniId);
       final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
 
       if (isCurrentlyLiked) {
-        // Unlike
         await _unlikeAlumni(alumniId);
         _likedAlumni.remove(alumniId);
         _alumniLikeCounts[alumniId] = (_alumniLikeCounts[alumniId] ?? 1) - 1;
-
         AppSnackbar.info('Removed', 'Removed ${alumni.name} from favorites');
       } else {
-        // Like
         await _likeAlumni(alumniId);
         _likedAlumni.add(alumniId);
         _alumniLikeCounts[alumniId] = (_alumniLikeCounts[alumniId] ?? 0) + 1;
-
         AppSnackbar.success('Liked', 'Added ${alumni.name} to favorites');
       }
 
-      // Trigger UI update
       _alumniLikeCounts.refresh();
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to update favorite status');
     }
   }
 
-  // Like alumni (Supabase)
   Future<void> _likeAlumni(String alumniId) async {
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) throw Exception('Not authenticated');
-
-      await Supabase.instance.client.from('alumni_likes').insert({
-        'user_id': currentUserId,
-        'alumni_id': alumniId,
-      });
-    } catch (e) {
-      throw Exception('Failed to like alumni: $e');
-    }
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception('Not authenticated');
+    await Supabase.instance.client.from('alumni_likes').insert({
+      'user_id': currentUserId,
+      'alumni_id': alumniId,
+    });
   }
 
-  // Unlike alumni (Supabase)
   Future<void> _unlikeAlumni(String alumniId) async {
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) throw Exception('Not authenticated');
-
-      await Supabase.instance.client
-          .from('alumni_likes')
-          .delete()
-          .eq('user_id', currentUserId)
-          .eq('alumni_id', alumniId);
-    } catch (e) {
-      throw Exception('Failed to unlike alumni: $e');
-    }
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) throw Exception('Not authenticated');
+    await Supabase.instance.client
+        .from('alumni_likes')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('alumni_id', alumniId);
   }
 
-  // Search alumni
   void searchAlumni(String query) {
     _searchQuery.value = query.toLowerCase();
     _applyFilters();
   }
 
-  // Filter by class year
   void filterByClass(String classYear) {
     _selectedClassFilter.value = classYear;
     _applyFilters();
   }
 
-  // Filter by school
   void filterBySchool(String school) {
     _selectedSchoolFilter.value = school;
     _applyFilters();
   }
 
-  // Toggle show only available for mentorship
   void toggleShowOnlyAvailable() {
     _showOnlyAvailable.value = !_showOnlyAvailable.value;
     _applyFilters();
   }
 
-  // Apply all filters
   void _applyFilters() {
     var filtered = _allAlumni.toList();
 
-    // Filter by availability for mentorship
     if (_showOnlyAvailable.value) {
       filtered = filtered.where((a) => a.isAvailableForMentorship).toList();
     }
 
-    // Filter by class year
     if (_selectedClassFilter.value != 'All') {
       filtered = filtered
           .where((a) => a.classInfo.contains(_selectedClassFilter.value))
           .toList();
     }
 
-    // Filter by school
     if (_selectedSchoolFilter.value != 'All') {
       filtered = filtered
           .where((a) => a.school.contains(_selectedSchoolFilter.value))
           .toList();
     }
 
-    // Filter by search query
     if (_searchQuery.value.isNotEmpty) {
       filtered = filtered.where((a) {
         return a.name.toLowerCase().contains(_searchQuery.value) ||
@@ -231,38 +218,31 @@ class AlumniController extends GetxController {
       }).toList();
     }
 
-    // Sort by name
     filtered.sort((a, b) => a.name.compareTo(b.name));
-
     _filteredAlumni.value = filtered;
   }
 
-  // Get available class years
   List<String> getAvailableClassYears() {
-    final years =
-        _allAlumni
-            .map((a) => a.classYear?.toString() ?? '')
-            .where((y) => y.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort((a, b) => b.compareTo(a)); // Most recent first
+    final years = _allAlumni
+        .map((a) => a.classYear?.toString() ?? '')
+        .where((y) => y.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
     years.insert(0, 'All');
     return years;
   }
 
-  // Get available schools
   List<String> getAvailableSchools() {
     final schools = _allAlumni.map((a) => a.school).toSet().toList()..sort();
     schools.insert(0, 'All');
     return schools;
   }
 
-  // Request mentorship
   Future<void> requestMentorship(String alumniId) async {
     try {
       final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
 
-      // Check if already requested
       if (_mentorshipRequests.contains(alumniId)) {
         AppSnackbar.info(
           'Already Requested',
@@ -271,7 +251,6 @@ class AlumniController extends GetxController {
         return;
       }
 
-      // Check if available
       if (!alumni.isAvailableForMentorship) {
         AppSnackbar.warning(
           'Not Available',
@@ -280,10 +259,19 @@ class AlumniController extends GetxController {
         return;
       }
 
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 500));
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        AppSnackbar.error('Not Signed In', 'Please sign in to request mentorship');
+        return;
+      }
 
-      // Add to requests
+      await Supabase.instance.client.from('mentorship_requests').insert({
+        'student_id': userId,
+        'mentor_id': alumniId,
+        'status': 'pending',
+        'requested_at': DateTime.now().toIso8601String(),
+      });
+
       _mentorshipRequests.add(alumniId);
 
       AppSnackbar.success(
@@ -295,15 +283,19 @@ class AlumniController extends GetxController {
     }
   }
 
-  // Cancel mentorship request
   Future<void> cancelMentorshipRequest(String alumniId) async {
     try {
       final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
 
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Supabase.instance.client
+          .from('mentorship_requests')
+          .update({'status': 'cancelled'})
+          .eq('mentor_id', alumniId)
+          .eq('student_id', userId)
+          .eq('status', 'pending');
 
-      // Remove from requests
       _mentorshipRequests.remove(alumniId);
 
       AppSnackbar.info(
@@ -315,12 +307,9 @@ class AlumniController extends GetxController {
     }
   }
 
-  // Check if mentorship request sent
-  bool hasMentorshipRequest(String alumniId) {
-    return _mentorshipRequests.contains(alumniId);
-  }
+  bool hasMentorshipRequest(String alumniId) =>
+      _mentorshipRequests.contains(alumniId);
 
-  // Get alumni by expertise
   List<AlumniModel> getAlumniByExpertise(String expertise) {
     return _allAlumni
         .where(
@@ -331,13 +320,10 @@ class AlumniController extends GetxController {
         .toList();
   }
 
-  // Refresh alumni
   Future<void> refreshAlumni() async {
     await loadAlumni();
-    await loadLikedAlumni();
   }
 
-  // Reset filters
   void resetFilters() {
     _searchQuery.value = '';
     _selectedClassFilter.value = 'All';
@@ -346,7 +332,6 @@ class AlumniController extends GetxController {
     _applyFilters();
   }
 
-  // Get alumni count statistics
   Map<String, int> getStatistics() {
     return {
       'total': _allAlumni.length,
@@ -354,5 +339,31 @@ class AlumniController extends GetxController {
       'filtered': _filteredAlumni.length,
       'liked': _likedAlumni.length,
     };
+  }
+
+  // ─── Mapper ─────────────────────────────────────────────────────────────────
+
+  AlumniModel _fromRow(Map<String, dynamic> row) {
+    final expertise =
+        (row['expertise'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final classYear = row['graduation_year'];
+    return AlumniModel(
+      id: row['id'] ?? '',
+      name: row['full_name'] ?? '',
+      role: row['current_position'] ?? 'Alumni',
+      school: row['school'] ?? 'Knowledge College',
+      classInfo: classYear != null ? 'Class of $classYear' : 'Alumni',
+      imageUrl: row['profile_image_url'],
+      bio: row['bio'] ?? '',
+      career: [row['current_position'], row['company']]
+          .where((v) => v != null && v.toString().isNotEmpty)
+          .join(' at '),
+      vision: row['bio'] ?? '',
+      isAvailableForMentorship: row['available_for_mentorship'] ?? false,
+      email: row['email'],
+      linkedin: row['linkedin_url'],
+      expertise: expertise,
+      menteeCount: row['total_mentorship_given'] ?? 0,
+    );
   }
 }

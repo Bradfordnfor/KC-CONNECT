@@ -314,6 +314,17 @@ class EventsPage extends StatelessWidget {
                     onPressed: () {
                       if (isRegistered) {
                         controller.unregisterFromEvent(event.id);
+                      } else if (event.isPaid) {
+                        showModalBottomSheet(
+                          context: Get.context!,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (ctx) => EventPaymentBottomSheet(
+                            eventId: event.id,
+                            eventName: event.title,
+                            price: event.registrationFee.toStringAsFixed(0),
+                          ),
+                        );
                       } else {
                         controller.registerForEvent(event.id);
                       }
@@ -411,17 +422,21 @@ class EventsPage extends StatelessWidget {
                   if (isRegistered) {
                     controller.unregisterFromEvent(event.id);
                     Navigator.pop(context);
-                  } else {
+                  } else if (event.isPaid) {
                     Navigator.pop(context);
                     showModalBottomSheet(
                       context: context,
                       backgroundColor: Colors.transparent,
                       isScrollControlled: true,
                       builder: (context) => EventPaymentBottomSheet(
-                        price: '500',
+                        eventId: event.id,
                         eventName: event.title,
+                        price: event.registrationFee.toStringAsFixed(0),
                       ),
                     );
+                  } else {
+                    controller.registerForEvent(event.id);
+                    Navigator.pop(context);
                   }
                 },
               );

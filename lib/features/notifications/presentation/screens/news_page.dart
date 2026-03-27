@@ -139,17 +139,17 @@ class _NewsPageState extends State<NewsPage> {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isRead ? AppColors.white.withOpacity(0.5) : AppColors.white,
+          color: isRead ? AppColors.white.withValues(alpha: 0.5) : AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isRead
                 ? AppColors.backgroundColor
-                : AppColors.blue.withOpacity(0.2),
+                : AppColors.blue.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -164,8 +164,8 @@ class _NewsPageState extends State<NewsPage> {
               height: 40,
               decoration: BoxDecoration(
                 color: isRead
-                    ? AppColors.blue.withOpacity(0.1)
-                    : AppColors.blue.withOpacity(0.3),
+                    ? AppColors.blue.withValues(alpha: 0.1)
+                    : AppColors.blue.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.notifications, color: AppColors.blue, size: 20),
@@ -251,7 +251,7 @@ class _NewsPageState extends State<NewsPage> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withOpacity(0.15),
+                        color: AppColors.blue.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -320,13 +320,13 @@ class _NewsPageState extends State<NewsPage> {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: AppColors.blue.withOpacity(0.1),
+              color: AppColors.blue.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.notifications_off_outlined,
               size: 50,
-              color: AppColors.blue.withOpacity(0.5),
+              color: AppColors.blue.withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 24),

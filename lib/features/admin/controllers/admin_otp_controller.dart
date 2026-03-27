@@ -11,7 +11,6 @@ class OTPRequest {
   final String userRole;
   final DateTime createdAt;
   final DateTime expiresAt;
-  final Map<String, dynamic> signupData;
 
   OTPRequest({
     required this.id,
@@ -22,7 +21,6 @@ class OTPRequest {
     required this.userRole,
     required this.createdAt,
     required this.expiresAt,
-    required this.signupData,
   });
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
@@ -49,24 +47,27 @@ class AdminOTPController extends GetxController {
     loadPendingOTPs();
   }
 
-  // Load pending OTP requests
   Future<void> loadPendingOTPs() async {
     try {
       _isLoading.value = true;
 
-      final response = await Supabase.instance.client.rpc('get_pending_otps');
+      final response = await Supabase.instance.client
+          .from('pending_signups')
+          .select()
+          .eq('is_active', true)
+          .order('created_at', ascending: false);
 
       _pendingOTPs.value = (response as List).map((item) {
         return OTPRequest(
           id: item['id'].toString(),
-          otpCode: item['otp_code'] ?? '',
-          userName: item['user_name'] ?? '',
-          userEmail: item['user_email'] ?? '',
-          userPhone: item['user_phone'] ?? '',
-          userRole: item['user_role'] ?? '',
-          createdAt: DateTime.parse(item['created_at']),
-          expiresAt: DateTime.parse(item['expires_at']),
-          signupData: item['signup_data'] ?? {},
+          otpCode: item['otp'] ?? '',
+          userName: item['name'] ?? '',
+          userEmail: item['email'] ?? '',
+          userPhone: item['phone'] ?? '',
+          userRole: item['role'] ?? '',
+          createdAt: DateTime.tryParse(item['created_at'] ?? '') ?? DateTime.now(),
+          expiresAt: DateTime.tryParse(item['expires_at'] ?? '') ??
+              DateTime.now().add(const Duration(days: 3)),
         );
       }).toList();
 
@@ -77,54 +78,45 @@ class AdminOTPController extends GetxController {
     }
   }
 
-  // Approve OTP request
+  // Approve: create the user via Edge Function (requires server-side auth admin)
   Future<void> approveOTP(String otpId, String userName) async {
     try {
-      await Supabase.instance.client.rpc(
-        'approve_otp',
-        params: {'otp_id': otpId},
+      await Supabase.instance.client.functions.invoke(
+        'approve-signup',
+        body: {'signup_id': otpId},
       );
 
       _pendingOTPs.removeWhere((otp) => otp.id == otpId);
 
       AppSnackbar.success(
         'Approved',
-        'OTP approved for $userName. Email notification sent.',
+        'Signup approved for $userName. They can now log in.',
       );
     } catch (e) {
-      AppSnackbar.error('Error', 'Failed to approve OTP');
+      AppSnackbar.error('Error', 'Failed to approve signup');
     }
   }
 
-  // Reject OTP request
+  // Reject: deactivate the pending signup record directly
   Future<void> rejectOTP(String otpId, String userName, String reason) async {
     try {
       if (reason.trim().isEmpty) {
-        AppSnackbar.error(
-          'Reason Required',
-          'Please provide a rejection reason',
-        );
+        AppSnackbar.error('Reason Required', 'Please provide a rejection reason');
         return;
       }
 
-      await Supabase.instance.client.rpc(
-        'reject_signup',
-        params: {'otp_id': otpId, 'reason': reason},
-      );
+      await Supabase.instance.client
+          .from('pending_signups')
+          .update({'is_active': false})
+          .eq('id', otpId);
 
       _pendingOTPs.removeWhere((otp) => otp.id == otpId);
 
-      AppSnackbar.success(
-        'Rejected',
-        'Signup rejected for $userName. Email notification sent.',
-      );
+      AppSnackbar.success('Rejected', 'Signup rejected for $userName');
     } catch (e) {
-      AppSnackbar.error('Error', 'Failed to reject OTP');
+      AppSnackbar.error('Error', 'Failed to reject signup');
     }
   }
 
-  // Refresh OTPs
-  Future<void> refreshOTPs() async {
-    await loadPendingOTPs();
-  }
+  Future<void> refreshOTPs() => loadPendingOTPs();
 }

@@ -12,20 +12,15 @@ class AdminBroadcastController extends GetxController {
 
   final audiences = ['Everyone', 'Students', 'Alumni', 'Staff', 'Admin'];
 
-  // Toggle audience selection
   void toggleAudience(String audience) {
     if (audience == 'Everyone') {
       if (_selectedAudiences.contains('Everyone')) {
-        // Deselect everyone
         _selectedAudiences.clear();
       } else {
-        // Select everyone
         _selectedAudiences.value = ['Everyone'];
       }
     } else {
-      // Remove "Everyone" if selecting individual
       _selectedAudiences.remove('Everyone');
-
       if (_selectedAudiences.contains(audience)) {
         _selectedAudiences.remove(audience);
       } else {
@@ -34,12 +29,9 @@ class AdminBroadcastController extends GetxController {
     }
   }
 
-  // Check if audience is selected
-  bool isAudienceSelected(String audience) {
-    return _selectedAudiences.contains(audience);
-  }
+  bool isAudienceSelected(String audience) =>
+      _selectedAudiences.contains(audience);
 
-  // Send broadcast
   Future<void> sendBroadcast({
     required String title,
     required String message,
@@ -53,42 +45,55 @@ class AdminBroadcastController extends GetxController {
       _isSending.value = true;
 
       // Determine target roles
-      List<String> targetRoles = [];
+      final List<String> targetRoles;
       if (_selectedAudiences.contains('Everyone')) {
         targetRoles = ['student', 'alumni', 'staff', 'admin'];
       } else {
         targetRoles = _selectedAudiences.map((a) => a.toLowerCase()).toList();
       }
 
-      // Insert notifications for target users
-      final currentAdminId = Supabase.instance.client.auth.currentUser?.id;
-      await Supabase.instance.client
-          .from('notifications')
-          .insert(
-            targetRoles
-                .map(
-                  (role) => {
-                    'title': title,
-                    'message': message,
-                    'type': 'announcement',
-                    'target_role': role,
-                    'created_by': currentAdminId,
-                  },
-                )
-                .toList(),
-          );
+      // Fetch active user IDs for target roles
+      final usersResponse = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .inFilter('role', targetRoles)
+          .eq('status', 'active');
+
+      final userIds =
+          (usersResponse as List).map((u) => u['id'] as String).toList();
+
+      if (userIds.isEmpty) {
+        _isSending.value = false;
+        AppSnackbar.error('No Users', 'No active users found for selected audience');
+        return;
+      }
+
+      // Insert one notification per user
+      final now = DateTime.now().toIso8601String();
+      final notifications = userIds
+          .map(
+            (uid) => {
+              'user_id': uid,
+              'title': title,
+              'message': message,
+              'type': 'announcement',
+              'priority': 'normal',
+              'is_read': false,
+              'created_at': now,
+            },
+          )
+          .toList();
+
+      await Supabase.instance.client.from('notifications').insert(notifications);
 
       _isSending.value = false;
-
-      // Reset selection
       _selectedAudiences.clear();
 
       AppSnackbar.success(
         'Broadcast Sent',
-        'Announcement sent to ${targetRoles.join(", ")}',
+        'Announcement sent to ${userIds.length} user${userIds.length == 1 ? '' : 's'}',
       );
 
-      // Close modal
       Get.back();
     } catch (e) {
       _isSending.value = false;
@@ -96,8 +101,5 @@ class AdminBroadcastController extends GetxController {
     }
   }
 
-  // Reset selections
-  void resetSelections() {
-    _selectedAudiences.clear();
-  }
+  void resetSelections() => _selectedAudiences.clear();
 }

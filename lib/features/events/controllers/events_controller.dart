@@ -1,9 +1,10 @@
 // lib/features/events/controllers/events_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/event_model.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EventsController extends GetxController {
-  // Reactive state
   final _allEvents = <EventModel>[].obs;
   final _filteredEvents = <EventModel>[].obs;
   final _searchQuery = ''.obs;
@@ -12,17 +13,15 @@ class EventsController extends GetxController {
   final _errorMessage = ''.obs;
   final _registeredEventIds = <String>[].obs;
 
-  // Event types for filtering
   final List<String> eventTypes = [
     'All',
     'Workshop',
     'Seminar',
-    'Competition',
-    'Networking',
+    'Lesson',
     'Social',
+    'Webinar',
   ];
 
-  // Getters
   List<EventModel> get allEvents => _allEvents;
   List<EventModel> get filteredEvents => _filteredEvents;
   List<EventModel> get upcomingEvents =>
@@ -41,53 +40,61 @@ class EventsController extends GetxController {
     loadEvents();
   }
 
-  // Load events
   Future<void> loadEvents() async {
     try {
       _isLoading.value = true;
       _errorMessage.value = '';
-
-      // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Load mock data (replace with Supabase later)
-      _allEvents.value = EventModel.mockList();
-      _applyFilters();
-
+      await Future.wait([_fetchEvents(), _loadRegisteredEventIds()]);
       _isLoading.value = false;
     } catch (e) {
-      _errorMessage.value = 'Failed to load events: ${e.toString()}';
+      _errorMessage.value = 'Failed to load events';
       _isLoading.value = false;
     }
   }
 
-  // Search events
+  Future<void> _fetchEvents() async {
+    final response = await Supabase.instance.client
+        .from('events')
+        .select()
+        .neq('status', 'cancelled')
+        .neq('status', 'draft')
+        .gte('start_date', DateTime.now().toIso8601String())
+        .order('start_date');
+
+    _allEvents.value = (response as List).map(_fromRow).toList();
+    _applyFilters();
+  }
+
+  Future<void> _loadRegisteredEventIds() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    final response = await Supabase.instance.client
+        .from('event_registrations')
+        .select('event_id')
+        .eq('user_id', userId)
+        .eq('status', 'registered');
+    _registeredEventIds.value =
+        (response as List).map((r) => r['event_id'] as String).toList();
+  }
+
   void searchEvents(String query) {
     _searchQuery.value = query.toLowerCase();
     _applyFilters();
   }
 
-  // Filter by event type
   void filterByType(String type) {
     _selectedTypeFilter.value = type;
     _applyFilters();
   }
 
-  // Apply all filters
   void _applyFilters() {
     var filtered = _allEvents.toList();
 
-    // Filter out past events by default
-    filtered = filtered.where((e) => !e.isPast).toList();
-
-    // Filter by event type
     if (_selectedTypeFilter.value != 'All') {
-      filtered = filtered
-          .where((e) => e.type == _selectedTypeFilter.value)
-          .toList();
+      filtered =
+          filtered.where((e) => e.type == _selectedTypeFilter.value).toList();
     }
 
-    // Filter by search query
     if (_searchQuery.value.isNotEmpty) {
       filtered = filtered.where((e) {
         return e.title.toLowerCase().contains(_searchQuery.value) ||
@@ -96,135 +103,151 @@ class EventsController extends GetxController {
       }).toList();
     }
 
-    // Sort by date (earliest first)
     filtered.sort((a, b) => a.date.compareTo(b.date));
-
     _filteredEvents.value = filtered;
   }
 
-  // Register for event
   Future<void> registerForEvent(String eventId) async {
     try {
       final event = _allEvents.firstWhere((e) => e.id == eventId);
 
-      // Check if already registered
       if (_registeredEventIds.contains(eventId)) {
-        Get.snackbar(
+        AppSnackbar.info(
           'Already Registered',
-          'You are already registered for this event',
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
+          'You are already registered for ${event.title}',
         );
         return;
       }
 
-      // Check if event is full
       if (event.isFull) {
-        Get.snackbar(
+        AppSnackbar.error(
           'Event Full',
-          'Sorry, this event has reached maximum capacity',
-          snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
+          'This event has reached maximum capacity',
         );
         return;
       }
 
-      // Simulate registration API call
-      await Future.delayed(const Duration(milliseconds: 500));
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        AppSnackbar.error('Not Signed In', 'Please sign in to register');
+        return;
+      }
 
-      // Update registered events list
+      await Future.wait([
+        Supabase.instance.client.from('event_registrations').insert({
+          'event_id': eventId,
+          'user_id': userId,
+          'status': 'registered',
+          'payment_status':
+              event.isPaid ? 'pending' : 'not_required',
+          'registration_date': DateTime.now().toIso8601String(),
+        }),
+        Supabase.instance.client
+            .from('events')
+            .update({'current_registrations': event.registeredCount + 1})
+            .eq('id', eventId),
+      ]);
+
       _registeredEventIds.add(eventId);
-
-      // Update event registration count and status
       final index = _allEvents.indexWhere((e) => e.id == eventId);
       if (index != -1) {
-        _allEvents[index] = event.copyWith(
-          registeredCount: event.registeredCount + 1,
-          isRegistered: true,
-        );
+        _allEvents[index] =
+            event.copyWith(registeredCount: event.registeredCount + 1);
         _applyFilters();
       }
 
-      Get.snackbar(
-        'Registration Successful',
+      AppSnackbar.success(
+        'Registered!',
         'You have been registered for ${event.title}',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
       );
     } catch (e) {
-      Get.snackbar(
-        'Registration Failed',
-        'Failed to register for event. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      AppSnackbar.error('Error', 'Failed to register. Please try again.');
     }
   }
 
-  // Unregister from event
   Future<void> unregisterFromEvent(String eventId) async {
     try {
       final event = _allEvents.firstWhere((e) => e.id == eventId);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
 
-      // Simulate unregister API call
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.wait([
+        Supabase.instance.client
+            .from('event_registrations')
+            .update({
+              'status': 'cancelled',
+              'cancelled_at': DateTime.now().toIso8601String(),
+            })
+            .eq('event_id', eventId)
+            .eq('user_id', userId),
+        Supabase.instance.client
+            .from('events')
+            .update({
+              'current_registrations': (event.registeredCount - 1).clamp(0, 999999),
+            })
+            .eq('id', eventId),
+      ]);
 
-      // Update registered events list
       _registeredEventIds.remove(eventId);
-
-      // Update event registration count and status
       final index = _allEvents.indexWhere((e) => e.id == eventId);
       if (index != -1) {
         _allEvents[index] = event.copyWith(
-          registeredCount: event.registeredCount - 1,
-          isRegistered: false,
+          registeredCount: (event.registeredCount - 1).clamp(0, 999999),
         );
         _applyFilters();
       }
 
-      Get.snackbar(
+      AppSnackbar.info(
         'Unregistered',
         'You have been unregistered from ${event.title}',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
       );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to unregister from event',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      AppSnackbar.error('Error', 'Failed to unregister from event');
     }
   }
 
-  // Check if user is registered for event
-  bool isRegistered(String eventId) {
-    return _registeredEventIds.contains(eventId);
-  }
+  bool isRegistered(String eventId) => _registeredEventIds.contains(eventId);
 
-  // Get registered events
-  List<EventModel> getRegisteredEvents() {
-    return _allEvents.where((e) => _registeredEventIds.contains(e.id)).toList();
-  }
+  List<EventModel> getRegisteredEvents() =>
+      _allEvents.where((e) => _registeredEventIds.contains(e.id)).toList();
 
-  // Refresh events
-  Future<void> refreshEvents() async {
-    await loadEvents();
-  }
+  Future<void> refreshEvents() => loadEvents();
 
-  // Reset filters
   void resetFilters() {
     _searchQuery.value = '';
     _selectedTypeFilter.value = 'All';
     _applyFilters();
   }
 
-  // Get event count by type
   int getEventCountByType(String type) {
-    if (type == 'All') {
-      return upcomingEvents.length;
-    }
+    if (type == 'All') return upcomingEvents.length;
     return upcomingEvents.where((e) => e.type == type).length;
   }
+
+  // ─── Mapper ─────────────────────────────────────────────────────────────────
+
+  EventModel _fromRow(dynamic row) {
+    final r = row as Map<String, dynamic>;
+    final startDate =
+        DateTime.tryParse(r['start_date'] ?? '') ?? DateTime.now();
+    return EventModel(
+      id: r['id'] ?? '',
+      title: r['title'] ?? '',
+      description: r['description'] ?? '',
+      type: _capitalise(r['event_type'] ?? 'other'),
+      date: startDate,
+      time:
+          '${startDate.hour.toString().padLeft(2, '0')}:${startDate.minute.toString().padLeft(2, '0')}',
+      host: r['host_name'],
+      location: r['venue'],
+      imageUrl: r['banner_image_url'],
+      capacity: r['max_capacity'],
+      registeredCount: r['current_registrations'] ?? 0,
+      isFeatured: r['is_featured'] ?? false,
+      registrationFee: (r['registration_fee'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  String _capitalise(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }

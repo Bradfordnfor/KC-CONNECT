@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
@@ -73,7 +74,7 @@ class AuthController extends GetxController {
       _isLoading.value = false;
     } catch (e) {
       _isLoading.value = false;
-      print('Error checking auth status: $e');
+      debugPrint('Error checking auth status: $e');
     }
   }
 
@@ -89,7 +90,7 @@ class AuthController extends GetxController {
           .single();
       _currentUser.value = response;
     } catch (e) {
-      print('Error loading user profile: $e');
+      debugPrint('Error loading user profile: $e');
     }
   }
 
@@ -119,7 +120,7 @@ class AuthController extends GetxController {
       return false;
     } catch (e) {
       _isLoading.value = false;
-      print('Sign in error: $e');
+      debugPrint('Sign in error: $e');
       return false;
     }
   }
@@ -199,7 +200,7 @@ class AuthController extends GetxController {
       }
     } catch (e) {
       _isLoading.value = false;
-      print('Sign up error: $e');
+      debugPrint('Sign up error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -223,7 +224,7 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       _isLoading.value = false;
-      print('OTP verification error: $e');
+      debugPrint('OTP verification error: $e');
       return false;
     }
   }
@@ -259,7 +260,7 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       _isLoading.value = false;
-      print('Resend OTP error: $e');
+      debugPrint('Resend OTP error: $e');
       return false;
     }
   }
@@ -273,7 +274,7 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       _isLoading.value = false;
-      print('Password reset error: $e');
+      debugPrint('Password reset error: $e');
       return false;
     }
   }
@@ -286,7 +287,7 @@ class AuthController extends GetxController {
       _currentUser.value = null;
       Get.offAllNamed(AppRoutes.login);
     } catch (e) {
-      print('Sign out error: $e');
+      debugPrint('Sign out error: $e');
     }
   }
 
@@ -318,7 +319,7 @@ class AuthController extends GetxController {
       );
     } catch (e) {
       // Non-fatal: OTP is stored in DB; admin can relay it if email fails
-      print('OTP email send error: $e');
+      debugPrint('OTP email send error: $e');
     }
   }
 
@@ -346,7 +347,7 @@ class AuthController extends GetxController {
 
       await Supabase.instance.client.from('notifications').insert(notifications);
     } catch (e) {
-      print('Admin notification error: $e');
+      debugPrint('Admin notification error: $e');
     }
   }
 }

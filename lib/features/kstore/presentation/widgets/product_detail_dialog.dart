@@ -150,10 +150,8 @@ class ProductDetailDialog extends StatelessWidget {
                       context: context,
                       backgroundColor: Colors.transparent,
                       isScrollControlled: true,
-                      builder: (context) => PurchaseBottomSheet(
-                        price: product.formattedPrice,
-                        productName: product.title,
-                      ),
+                      builder: (context) =>
+                          PurchaseBottomSheet(product: product),
                     );
                   },
                 ),

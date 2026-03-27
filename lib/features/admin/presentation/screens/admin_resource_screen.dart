@@ -1,47 +1,71 @@
-// lib/views/admin/pages/admin_resources_page.dart
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/common/dialog.dart';
+import 'package:kc_connect/core/widgets/empty_state.dart';
+import 'package:kc_connect/core/widgets/loading_indicator.dart';
+import 'package:kc_connect/features/admin/controllers/admin_resources_controller.dart';
 
 class AdminResourcesPage extends StatelessWidget {
-  const AdminResourcesPage({Key? key}) : super(key: key);
+  const AdminResourcesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final controller = Get.put(AdminResourcesController());
+
     return Material(
       color: AppColors.backgroundColor,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Most Downloaded Card
-            _buildMostDownloadedCard(),
-            const SizedBox(height: 24),
+      child: Obx(() {
+        if (controller.isLoading) {
+          return const Center(child: LoadingIndicator());
+        }
 
-            Text(
-              'All Resources',
-              style: AppTextStyles.subHeading.copyWith(
-                color: AppColors.blue,
-                fontSize: 18,
-              ),
+        if (controller.resources.isEmpty) {
+          return const EmptyState(
+            icon: Icons.folder_open,
+            title: 'No Resources',
+            message: 'No resources have been uploaded yet',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => controller.refreshResources(),
+          color: AppColors.blue,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTopCard(controller),
+                const SizedBox(height: 24),
+                Text(
+                  'All Resources',
+                  style: AppTextStyles.subHeading.copyWith(
+                    color: AppColors.blue,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildList(context, controller),
+              ],
             ),
-            const SizedBox(height: 12),
-
-            _buildResourcesList(),
-          ],
-        ),
-      ),
+          ),
+        );
+      }),
     );
   }
 
-  Widget _buildMostDownloadedCard() {
+  Widget _buildTopCard(AdminResourcesController controller) {
+    final top = controller.topResource;
+    if (top == null) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.blue, AppColors.blue.withOpacity(0.8)],
+          colors: [AppColors.blue, AppColors.blue.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -63,7 +87,7 @@ class AdminResourcesPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Advanced Mathematics O/L',
+            top['title'] as String? ?? '—',
             style: AppTextStyles.subHeading.copyWith(
               color: AppColors.white,
               fontSize: 18,
@@ -71,9 +95,10 @@ class AdminResourcesPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '1,234 Downloads • Mathematics • O/L',
+            '${top['download_count'] ?? 0} Downloads · '
+            '${top['subject'] ?? ''} · ${top['category'] ?? ''}',
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.white.withOpacity(0.9),
+              color: AppColors.white.withValues(alpha: 0.9),
             ),
           ),
         ],
@@ -81,25 +106,26 @@ class AdminResourcesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildResourcesList() {
-    final resources = [
-      {'title': 'Physics A/L Notes', 'subject': 'Physics', 'downloads': 856},
-      {'title': 'Chemistry Guide', 'subject': 'Chemistry', 'downloads': 654},
-      {'title': 'English Grammar', 'subject': 'English', 'downloads': 542},
-    ];
-
+  Widget _buildList(BuildContext context, AdminResourcesController controller) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: resources.length,
+      itemCount: controller.resources.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final resource = resources[index];
+        final resource = controller.resources[index];
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.white,
             borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -108,14 +134,15 @@ class AdminResourcesPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      resource['title'] as String,
+                      resource['title'] as String? ?? '—',
                       style: AppTextStyles.body.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${resource['downloads']} downloads',
+                      '${resource['download_count'] ?? 0} downloads'
+                      '${resource['subject'] != null ? ' · ${resource['subject']}' : ''}',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -126,16 +153,16 @@ class AdminResourcesPage extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.error),
                 onPressed: () async {
-                  final confirmed = await AppDialog.confirmDelete(
+                  await AppDialog.confirmDelete(
                     context: context,
                     title: 'Delete Resource',
                     message:
-                        'Are you sure you want to delete this resource? This action cannot be undone.',
+                        'Are you sure you want to delete "${resource['title']}"? '
+                        'This cannot be undone.',
                     onConfirm: () async {
-                      // TODO: Implement actual delete with Supabase
-                      // await Supabase.instance.client.from('resources').delete().eq('id', resource['id']);
-                      Navigator.pop(context);
-                      // Optionally refresh resources list
+                      await controller.deleteResource(
+                        resource['id'] as String,
+                      );
                     },
                   );
                 },

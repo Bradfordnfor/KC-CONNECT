@@ -4,12 +4,16 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/profile/controllers/profile_controller.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final controller = Get.put(ProfileController());
+
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
@@ -35,27 +39,32 @@ class ProfilePage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 24),
-            _buildProfileHeader(),
-            const SizedBox(height: 32),
-            _buildInfoSection(),
-            const SizedBox(height: 24),
-            _buildStatsSection(),
-            const SizedBox(height: 24),
-            _buildActivitySection(),
-            const SizedBox(height: 24),
-          ],
+      body: RefreshIndicator(
+        onRefresh: () => controller.refreshProfile(),
+        color: AppColors.blue,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              _buildProfileHeader(context, controller),
+              const SizedBox(height: 32),
+              _buildInfoSection(controller),
+              const SizedBox(height: 24),
+              _buildStatsSection(controller),
+              const SizedBox(height: 24),
+              _buildActivitySection(controller),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildProfileHeader() {
-    return Column(
+  Widget _buildProfileHeader(BuildContext context, ProfileController controller) {
+    return Obx(() => Column(
       children: [
         Container(
           width: 100,
@@ -65,17 +74,26 @@ class ProfilePage extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: AppColors.red.withOpacity(0.3),
+                color: AppColors.red.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Icon(Icons.person, color: AppColors.white, size: 50),
+          child: controller.imageUrl != null
+              ? ClipOval(
+                  child: Image.network(
+                    controller.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.person, color: AppColors.white, size: 50),
+                  ),
+                )
+              : const Icon(Icons.person, color: AppColors.white, size: 50),
         ),
         const SizedBox(height: 16),
         Text(
-          'John Kamdem',
+          controller.name.isEmpty ? 'KC Connect User' : controller.name,
           style: AppTextStyles.heading.copyWith(
             color: AppColors.blue,
             fontSize: 24,
@@ -83,7 +101,7 @@ class ProfilePage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Student',
+          controller.role,
           style: AppTextStyles.body.copyWith(
             color: Colors.grey[600],
             fontSize: 14,
@@ -91,7 +109,7 @@ class ProfilePage extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Knowledge College',
+          controller.institution,
           style: AppTextStyles.caption.copyWith(
             color: Colors.grey[500],
             fontSize: 13,
@@ -102,23 +120,23 @@ class ProfilePage extends StatelessWidget {
           width: 160,
           child: PrimaryButton(
             label: 'Edit Profile',
-            onPressed: () => Get.toNamed('/settings'),
+            onPressed: () => _showEditProfileSheet(context, controller),
             height: 40,
           ),
         ),
       ],
-    );
+    ));
   }
 
-  Widget _buildInfoSection() {
-    return Container(
+  Widget _buildInfoSection(ProfileController controller) {
+    return Obx(() => Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -136,16 +154,22 @@ class ProfilePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _buildInfoRow(Icons.email, 'Email', 'john.kamdem@kcconnect.com'),
+          _buildInfoRow(Icons.email, 'Email',
+              controller.email.isEmpty ? '—' : controller.email),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.phone, 'Phone', '+237 123 456 789'),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.school, 'Level', 'Advanced Level'),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.calendar_today, 'Class', 'Class of 2024'),
+          _buildInfoRow(Icons.phone, 'Phone',
+              controller.phone.isEmpty ? '—' : controller.phone),
+          if (controller.level.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow(Icons.school, 'Level', controller.level),
+          ],
+          if (controller.classYear.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow(Icons.calendar_today, 'Class', controller.classYear),
+          ],
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
@@ -155,7 +179,7 @@ class ProfilePage extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: AppColors.blue.withOpacity(0.1),
+            color: AppColors.blue.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: AppColors.blue, size: 18),
@@ -185,14 +209,14 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsSection() {
-    return Row(
+  Widget _buildStatsSection(ProfileController controller) {
+    return Obx(() => Row(
       children: [
         Expanded(
           child: _buildStatCard(
             icon: Icons.event,
             label: 'Events',
-            value: '2',
+            value: controller.myEventsCount.toString(),
             color: AppColors.blue,
           ),
         ),
@@ -201,7 +225,7 @@ class ProfilePage extends StatelessWidget {
           child: _buildStatCard(
             icon: Icons.bookmark,
             label: 'Saved',
-            value: '3',
+            value: controller.savedCount.toString(),
             color: AppColors.deepRed,
           ),
         ),
@@ -210,12 +234,12 @@ class ProfilePage extends StatelessWidget {
           child: _buildStatCard(
             icon: Icons.download,
             label: 'Downloads',
-            value: '12',
+            value: controller.downloadsCount.toString(),
             color: AppColors.blue,
           ),
         ),
       ],
-    );
+    ));
   }
 
   Widget _buildStatCard({
@@ -231,7 +255,7 @@ class ProfilePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -262,61 +286,64 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildActivitySection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.history, color: AppColors.blue, size: 24),
-              const SizedBox(width: 12),
-              Text(
-                'Recent Activity',
-                style: AppTextStyles.body.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.blue,
-                  fontSize: 16,
+  Widget _buildActivitySection(ProfileController controller) {
+    return Obx(() {
+      final activities = controller.recentActivity;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.history, color: AppColors.blue, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'Recent Activity',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.blue,
+                    fontSize: 16,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem(
-            icon: Icons.event,
-            title: 'Registered for STEM Quest',
-            time: '2 days ago',
-            color: AppColors.blue,
-          ),
-          const SizedBox(height: 12),
-          _buildActivityItem(
-            icon: Icons.download,
-            title: 'Downloaded Mathematics Past Paper',
-            time: '5 days ago',
-            color: AppColors.deepRed,
-          ),
-          const SizedBox(height: 12),
-          _buildActivityItem(
-            icon: Icons.bookmark,
-            title: 'Saved Physics Study Guide',
-            time: '1 week ago',
-            color: AppColors.blue,
-          ),
-        ],
-      ),
-    );
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (activities.isEmpty)
+              Text(
+                'No recent activity yet',
+                style: AppTextStyles.caption.copyWith(color: Colors.grey[500]),
+              )
+            else
+              ...activities.asMap().entries.map((entry) {
+                final item = entry.value;
+                return Column(
+                  children: [
+                    if (entry.key > 0) const SizedBox(height: 12),
+                    _buildActivityItem(
+                      icon: item.icon,
+                      title: item.title,
+                      time: item.timeAgo,
+                      color: item.color,
+                    ),
+                  ],
+                );
+              }),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildActivityItem({
@@ -331,7 +358,7 @@ class ProfilePage extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 18),
@@ -361,5 +388,111 @@ class ProfilePage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _showEditProfileSheet(BuildContext context, ProfileController controller) {
+    AppBottomSheet.show(
+      context: context,
+      title: 'Edit Profile',
+      child: _EditProfileForm(controller: controller),
+    );
+  }
+}
+
+class _EditProfileForm extends StatefulWidget {
+  final ProfileController controller;
+  const _EditProfileForm({required this.controller});
+
+  @override
+  State<_EditProfileForm> createState() => _EditProfileFormState();
+}
+
+class _EditProfileFormState extends State<_EditProfileForm> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _bioController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.controller.name);
+    _phoneController = TextEditingController(text: widget.controller.phone);
+    _bioController = TextEditingController(text: widget.controller.bio);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppTextField(
+          label: 'Full Name',
+          hint: 'Enter your full name',
+          controller: _nameController,
+        ),
+        const SizedBox(height: 16),
+        AppTextField(
+          label: 'Phone Number',
+          hint: 'e.g. +237 6XX XXX XXX',
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: 16),
+        AppMultilineField(
+          label: 'Bio',
+          hint: 'Tell us about yourself',
+          controller: _bioController,
+          minLines: 2,
+          maxLines: 4,
+        ),
+        const SizedBox(height: 24),
+        Obx(() => SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: widget.controller.isUpdating
+                ? null
+                : () async {
+                    await widget.controller.updateProfile(
+                      fullName: _nameController.text,
+                      phone: _phoneController.text,
+                      bio: _bioController.text,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: widget.controller.isUpdating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: AppColors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        )),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _bioController.dispose();
+    super.dispose();
   }
 }

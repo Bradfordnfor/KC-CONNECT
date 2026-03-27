@@ -1,8 +1,9 @@
-// lib/views/k_store/widgets/add_product_modal.dart
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/utils/validators.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddProductModal extends StatefulWidget {
   const AddProductModal({super.key});
@@ -18,7 +19,7 @@ class _AddProductModalState extends State<AddProductModal> {
   final _descriptionController = TextEditingController();
   final _stockController = TextEditingController();
 
-  String? _selectedImageName;
+  PlatformFile? _pickedImage;
   bool _isUploading = false;
 
   @override
@@ -71,27 +72,35 @@ class _AddProductModalState extends State<AddProductModal> {
             ),
             const SizedBox(height: 16),
 
-            // Image Selection
+            // Image picker button
             OutlinedButton.icon(
-              onPressed: _pickImage,
-              icon: const Icon(Icons.image),
-              label: Text(_selectedImageName ?? 'Select Product Image'),
+              onPressed: _isUploading ? null : _pickImage,
+              icon: Icon(
+                _pickedImage != null ? Icons.check_circle : Icons.image,
+                color:
+                    _pickedImage != null ? AppColors.success : AppColors.blue,
+              ),
+              label: Text(
+                _pickedImage != null
+                    ? '${_pickedImage!.name}  '
+                        '(${FileSizeValidator.formatBytes(_pickedImage!.size)})'
+                    : 'Select Product Image',
+                overflow: TextOverflow.ellipsis,
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                side: const BorderSide(color: AppColors.blue),
+                side: BorderSide(
+                  color: _pickedImage != null
+                      ? AppColors.success
+                      : AppColors.blue,
+                ),
               ),
             ),
 
             if (_isUploading) ...[
               const SizedBox(height: 16),
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(color: AppColors.blue),
-                    SizedBox(height: 8),
-                    Text('Uploading...'),
-                  ],
-                ),
+              AppUploadingIndicator(
+                message: 'Uploading ${_pickedImage?.name ?? 'image'}...',
               ),
             ],
 
@@ -123,27 +132,69 @@ class _AddProductModalState extends State<AddProductModal> {
     );
   }
 
-  void _pickImage() {
-    // TODO: Implement image_picker
-    setState(() => _selectedImageName = 'product_image.jpg');
-    AppSnackbar.info('Image Selected', 'Image picker will be implemented');
-  }
-
-  void _handleSubmit() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedImageName == null) {
-        AppSnackbar.error('No Image', 'Please select a product image');
+  Future<void> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+      final sizeError = FileSizeValidator.validate(file.size, 5);
+      if (sizeError != null) {
+        AppSnackbar.error('Image Too Large', sizeError);
         return;
       }
+      setState(() => _pickedImage = file);
+    }
+  }
 
-      setState(() => _isUploading = true);
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_pickedImage == null || _pickedImage!.bytes == null) {
+      AppSnackbar.error('No Image', 'Please select a product image');
+      return;
+    }
 
-      // TODO: Upload to Supabase
-      await Future.delayed(const Duration(seconds: 2));
+    setState(() => _isUploading = true);
 
-      setState(() => _isUploading = false);
-      AppSnackbar.success('Success', 'Product added');
-      Navigator.pop(context);
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final safeName =
+          _pickedImage!.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final storagePath = '$userId/${timestamp}_$safeName';
+
+      await Supabase.instance.client.storage
+          .from('products')
+          .uploadBinary(
+            storagePath,
+            _pickedImage!.bytes!,
+            fileOptions: const FileOptions(upsert: false),
+          );
+
+      final imageUrl = Supabase.instance.client.storage
+          .from('products')
+          .getPublicUrl(storagePath);
+
+      await Supabase.instance.client.from('products').insert({
+        'name': _nameController.text.trim(),
+        'price': double.parse(_priceController.text.trim()),
+        'description': _descriptionController.text.trim(),
+        'stock_quantity': int.parse(_stockController.text.trim()),
+        'primary_image_url': imageUrl,
+        'status': 'active',
+        'added_by': userId,
+      });
+
+      if (mounted) Navigator.pop(context);
+      AppSnackbar.success('Added', 'Product added successfully');
+    } catch (e) {
+      debugPrint('Add product error: $e');
+      AppSnackbar.error('Error', 'Failed to add product');
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 

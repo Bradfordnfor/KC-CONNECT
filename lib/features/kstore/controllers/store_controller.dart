@@ -1,79 +1,72 @@
 // lib/features/store/controllers/store_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/product_model.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StoreController extends GetxController {
-  // Reactive state
   final _products = <ProductModel>[].obs;
   final _filteredProducts = <ProductModel>[].obs;
   final _selectedCategory = 'All'.obs;
   final _searchQuery = ''.obs;
   final _isLoading = false.obs;
+  final _errorMessage = ''.obs;
   final _cartItems = <String, int>{}.obs; // productId -> quantity
 
-  // Getters
   List<ProductModel> get products => _products;
   List<ProductModel> get filteredProducts => _filteredProducts;
   String get selectedCategory => _selectedCategory.value;
   String get searchQuery => _searchQuery.value;
   bool get isLoading => _isLoading.value;
+  String get errorMessage => _errorMessage.value;
   int get cartItemCount => _cartItems.values.fold(0, (sum, qty) => sum + qty);
 
   @override
-  /*************  ✨ Windsurf Command ⭐  *************/
-  /// Called when the controller is initialized.
-  /// Loads mock products into the [_products] list
-  /// and sets [_isLoading] to true until the data is loaded.
-  /*******  ef635e7b-20aa-45c4-9a8c-02d4e81523ae  *******/
   void onInit() {
     super.onInit();
-    _loadMockProducts();
+    loadProducts();
   }
 
-  // Load mock products
-  void _loadMockProducts() {
-    _isLoading.value = true;
+  Future<void> loadProducts() async {
+    try {
+      _isLoading.value = true;
+      _errorMessage.value = '';
 
-    // Mock data - replace with Supabase later
-    _products.value = [
-      ProductModel.mock(id: '1', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '2', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '3', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '4', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '5', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '6', title: 'KC T-SHIRT', price: 4999),
-      ProductModel.mock(id: '7', title: 'KC HOODIE', price: 7999),
-      ProductModel.mock(id: '8', title: 'KC CAP', price: 2999),
-    ];
+      final response = await Supabase.instance.client
+          .from('products')
+          .select()
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
 
-    _filteredProducts.value = _products;
-    _isLoading.value = false;
+      _products.value =
+          (response as List).map((r) => _fromRow(r as Map<String, dynamic>)).toList();
+      _filterProducts();
+      _isLoading.value = false;
+    } catch (e) {
+      _errorMessage.value = 'Failed to load products';
+      _isLoading.value = false;
+    }
   }
 
-  // Search products
   void searchProducts(String query) {
     _searchQuery.value = query.toLowerCase();
     _filterProducts();
   }
 
-  // Filter by category
   void filterByCategory(String category) {
     _selectedCategory.value = category;
     _filterProducts();
   }
 
-  // Apply filters
   void _filterProducts() {
     var filtered = _products.toList();
 
-    // Filter by category
     if (_selectedCategory.value != 'All') {
       filtered = filtered
           .where((p) => p.category == _selectedCategory.value)
           .toList();
     }
 
-    // Filter by search query
     if (_searchQuery.value.isNotEmpty) {
       filtered = filtered
           .where(
@@ -87,7 +80,12 @@ class StoreController extends GetxController {
     _filteredProducts.value = filtered;
   }
 
-  // Add to cart
+  List<String> getAvailableCategories() {
+    final categories = _products.map((p) => p.category).toSet().toList()..sort();
+    categories.insert(0, 'All');
+    return categories;
+  }
+
   void addToCart(String productId) {
     if (_cartItems.containsKey(productId)) {
       _cartItems[productId] = _cartItems[productId]! + 1;
@@ -95,29 +93,43 @@ class StoreController extends GetxController {
       _cartItems[productId] = 1;
     }
     _cartItems.refresh();
-
-    Get.snackbar(
-      'Added to Cart',
-      'Product added successfully',
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 2),
-    );
+    AppSnackbar.success('Added to Cart', 'Product added successfully');
   }
 
-  // Get cart quantity for product
-  int getCartQuantity(String productId) {
-    return _cartItems[productId] ?? 0;
-  }
+  int getCartQuantity(String productId) => _cartItems[productId] ?? 0;
 
-  // Clear cart
-  void clearCart() {
-    _cartItems.clear();
-  }
+  void clearCart() => _cartItems.clear();
 
-  // Reset filters
+  Future<void> refreshProducts() => loadProducts();
+
   void resetFilters() {
     _selectedCategory.value = 'All';
     _searchQuery.value = '';
     _filteredProducts.value = _products;
+  }
+
+  // ─── Mapper ─────────────────────────────────────────────────────────────────
+
+  ProductModel _fromRow(Map<String, dynamic> r) {
+    final sizes =
+        (r['sizes'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final colors =
+        (r['colors'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final createdAt = DateTime.tryParse(r['created_at'] ?? '');
+    final isRecent = createdAt != null &&
+        DateTime.now().difference(createdAt).inDays <= 30;
+
+    return ProductModel(
+      id: r['id'] ?? '',
+      title: r['name'] ?? '',
+      description: r['description'] ?? '',
+      price: (r['price'] as num?)?.toDouble() ?? 0.0,
+      imageUrl: r['primary_image_url'] ?? '',
+      category: r['category'] ?? 'other',
+      isNew: r['is_featured'] == true || isRecent,
+      sizes: sizes,
+      colors: colors,
+      stock: r['stock_quantity'] ?? 0,
+    );
   }
 }

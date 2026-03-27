@@ -1,8 +1,11 @@
 // lib/views/events/widgets/add_event_modal.dart
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/utils/validators.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddEventModal extends StatefulWidget {
   const AddEventModal({super.key});
@@ -17,11 +20,13 @@ class _AddEventModalState extends State<AddEventModal> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
 
-  String _eventType = 'Workshop';
+  String _eventType = 'workshop';
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
+  bool _isSubmitting = false;
 
-  final _eventTypes = ['Workshop', 'Seminar', 'Social', 'Conference', 'Other'];
+  // DB-accepted event types (lowercase)
+  final _eventTypes = ['workshop', 'seminar', 'lesson', 'social', 'webinar'];
 
   @override
   Widget build(BuildContext context) {
@@ -43,11 +48,11 @@ class _AddEventModalState extends State<AddEventModal> {
               label: 'Type',
               value: _eventType,
               items: _eventTypes,
+              displayLabel: (v) => v[0].toUpperCase() + v.substring(1),
               onChanged: (value) => setState(() => _eventType = value!),
             ),
             const SizedBox(height: 16),
 
-            // Date & Time
             Row(
               children: [
                 Expanded(
@@ -118,26 +123,58 @@ class _AddEventModalState extends State<AddEventModal> {
               controller: _locationController,
               validator: (value) => Validators.required(value, 'Location'),
             ),
+            const SizedBox(height: 8),
+
+            // Fixed fee notice
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.blue.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.payments_outlined, color: AppColors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Registration fee: XAF 500',
+                    style: TextStyle(
+                      color: AppColors.blue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
 
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _handleSubmit,
+                onPressed: _isSubmitting ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.blue,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  'Create Event',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: AppColors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Create Event',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -150,6 +187,7 @@ class _AddEventModalState extends State<AddEventModal> {
     required String label,
     required String value,
     required List<String> items,
+    required String Function(String) displayLabel,
     required ValueChanged<String?> onChanged,
   }) {
     return Column(
@@ -164,9 +202,9 @@ class _AddEventModalState extends State<AddEventModal> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           items: items.map((item) {
-            return DropdownMenuItem(value: item, child: Text(item));
+            return DropdownMenuItem(value: item, child: Text(displayLabel(item)));
           }).toList(),
           onChanged: onChanged,
           decoration: InputDecoration(
@@ -179,17 +217,48 @@ class _AddEventModalState extends State<AddEventModal> {
     );
   }
 
-  void _handleSubmit() {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedDate == null || _selectedTime == null) {
-        AppSnackbar.error('Missing Info', 'Please select date and time');
-        return;
-      }
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedDate == null || _selectedTime == null) {
+      AppSnackbar.error('Missing Info', 'Please select date and time');
+      return;
+    }
 
-      // TODO: Add to Supabase
-      // Get host name from auth: authController.currentUser.name
-      AppSnackbar.success('Success', 'Event created');
-      Navigator.pop(context);
+    setState(() => _isSubmitting = true);
+
+    try {
+      final authController = Get.find<AuthController>();
+      final hostName = authController.currentUser?['full_name'] as String? ?? 'KC Connect';
+      final organizerId = Supabase.instance.client.auth.currentUser?.id;
+
+      final startDate = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      await Supabase.instance.client.from('events').insert({
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'event_type': _eventType,
+        'start_date': startDate.toIso8601String(),
+        'venue': _locationController.text.trim(),
+        'host_name': hostName,
+        'organized_by': organizerId,
+        'registration_fee': 500,
+        'requires_registration': true,
+        'status': 'upcoming',
+        'visibility': 'public',
+      });
+
+      if (mounted) Navigator.pop(context);
+      AppSnackbar.success('Created', 'Event created successfully');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to create event');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 

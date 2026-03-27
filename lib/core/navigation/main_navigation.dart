@@ -14,19 +14,82 @@ import 'package:kc_connect/features/resources/presentation/screens/resources_pag
 import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
 import 'package:kc_connect/features/events/presentation/screens/events_page.dart';
 import 'package:kc_connect/features/kstore/presentation/screens/kstore_page.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
-class MainNavigation extends StatelessWidget {
-  MainNavigation({super.key});
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
 
-  final NavigationController navController = Get.put(NavigationController());
+  @override
+  State<MainNavigation> createState() => _MainNavigationState();
 
-  final List<Widget> _pages = [
-    const HomePage(),
-    const ResourcesPage(),
-    const LearnPage(),
-    EventsPage(),
-    KstorePage(),
-  ];
+  // Static helper for secondary page app bars (used throughout the app)
+  static PreferredSizeWidget buildSecondaryAppBar(
+    BuildContext context, {
+    required String title,
+    VoidCallback? onBackPressed,
+  }) {
+    return AppBar(
+      backgroundColor: AppColors.white,
+      elevation: 2,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: AppColors.blue),
+        onPressed: onBackPressed ?? () => Get.back(),
+      ),
+      title: Text(
+        title,
+        style: AppTextStyles.subHeading.copyWith(
+          color: AppColors.blue,
+          fontSize: 20,
+        ),
+      ),
+      centerTitle: true,
+    );
+  }
+}
+
+class _MainNavigationState extends State<MainNavigation> {
+  late final NavigationController navController;
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    navController = Get.put(NavigationController());
+    _pages = [
+      const HomePage(),
+      const ResourcesPage(),
+      const LearnPage(),
+      EventsPage(),
+      KstorePage(),
+    ];
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSubscription());
+  }
+
+  void _checkSubscription() {
+    final user = Get.find<AuthController>().currentUser;
+    if (user == null) return;
+
+    final role = user['role'] as String? ?? '';
+    if (role == 'admin' || role == 'staff') return; // staff/admin are exempt
+
+    final status = user['subscription_status'] as String? ?? 'free';
+    final endDateStr = user['subscription_end_date'] as String?;
+
+    bool needsSubscription = status != 'premium';
+    if (!needsSubscription && endDateStr != null) {
+      final endDate = DateTime.tryParse(endDateStr);
+      if (endDate != null && DateTime.now().isAfter(endDate)) {
+        needsSubscription = true;
+      }
+    }
+
+    if (needsSubscription) {
+      Get.dialog(
+        const SubscriptionPaymentModal(),
+        barrierDismissible: false,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +98,6 @@ class MainNavigation extends StatelessWidget {
         final bool isLargeScreen = constraints.maxWidth >= 600;
 
         if (isLargeScreen) {
-          // Large screen: drawer always visible
           return Scaffold(
             appBar: _buildAppBar(context, showMenuButton: false),
             body: Row(
@@ -54,14 +116,11 @@ class MainNavigation extends StatelessWidget {
             bottomNavigationBar: Obx(
               () => BottomNavBar(
                 currentIndex: navController.currentIndex,
-                onTap: (index) {
-                  navController.changePage(index);
-                },
+                onTap: navController.changePage,
               ),
             ),
           );
         } else {
-          // Small screen: drawer hidden
           return Scaffold(
             appBar: _buildAppBar(context, showMenuButton: true),
             endDrawer: _buildDrawer(context),
@@ -74,9 +133,7 @@ class MainNavigation extends StatelessWidget {
             bottomNavigationBar: Obx(
               () => BottomNavBar(
                 currentIndex: navController.currentIndex,
-                onTap: (index) {
-                  navController.changePage(index);
-                },
+                onTap: navController.changePage,
               ),
             ),
           );
@@ -102,7 +159,7 @@ class MainNavigation extends StatelessWidget {
         ),
       ),
       title: Obx(() {
-        final titles = ['HOME', 'RESOURCES', 'LEARN', 'EVENTS', 'K-STORE'];
+        const titles = ['HOME', 'RESOURCES', 'LEARN', 'EVENTS', 'K-STORE'];
         return Text(
           titles[navController.currentIndex],
           style: AppTextStyles.subHeading.copyWith(
@@ -115,18 +172,13 @@ class MainNavigation extends StatelessWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications_outlined, color: AppColors.blue),
-          onPressed: () {
-            // Navigate to news page using GetX routes
-            Get.toNamed(AppRoutes.news);
-          },
+          onPressed: () => Get.toNamed(AppRoutes.news),
         ),
         if (showMenuButton)
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: AppColors.blue),
-              onPressed: () {
-                Scaffold.of(context).openEndDrawer();
-              },
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),
       ],
@@ -225,14 +277,6 @@ class MainNavigation extends StatelessWidget {
                       onTap: () {
                         Navigator.pop(context);
                         Get.toNamed(AppRoutes.settings);
-                        // Get.snackbar(
-                        //   'Coming Soon',
-                        //   'Settings page will be available soon',
-                        //   snackPosition: SnackPosition.BOTTOM,
-                        //   backgroundColor: AppColors.blue,
-                        //   colorText: AppColors.white,
-                        //   margin: const EdgeInsets.all(16),
-                        // );
                       },
                     ),
                     const Divider(color: AppColors.white, thickness: 0.5),
@@ -243,14 +287,6 @@ class MainNavigation extends StatelessWidget {
                       onTap: () {
                         Navigator.pop(context);
                         Get.toNamed(AppRoutes.help);
-                        // Get.snackbar(
-                        //   'Coming Soon',
-                        //   'Help & Support page will be available soon',
-                        //   snackPosition: SnackPosition.BOTTOM,
-                        //   backgroundColor: AppColors.blue,
-                        //   colorText: AppColors.white,
-                        //   margin: const EdgeInsets.all(16),
-                        // );
                       },
                     ),
                     _buildDrawerItem(
@@ -265,7 +301,8 @@ class MainNavigation extends StatelessWidget {
                     ),
                     Obx(() {
                       final authController = Get.find<AuthController>();
-                      final role = authController.currentUser?['role'] ?? '';
+                      final role =
+                          authController.currentUser?['role'] ?? '';
                       if (role != 'admin' && role != 'staff') {
                         return const SizedBox.shrink();
                       }
@@ -307,7 +344,8 @@ class MainNavigation extends StatelessWidget {
       ),
       onTap: onTap,
       hoverColor: AppColors.white.withValues(alpha: 0.1),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }
 
@@ -348,9 +386,8 @@ class MainNavigation extends StatelessWidget {
                       ),
                       child: Text(
                         'Cancel',
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.blue,
-                        ),
+                        style: AppTextStyles.body
+                            .copyWith(color: AppColors.blue),
                       ),
                     ),
                   ),
@@ -377,30 +414,6 @@ class MainNavigation extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  // Static method to build secondary page app bar
-  static PreferredSizeWidget buildSecondaryAppBar(
-    BuildContext context, {
-    required String title,
-    VoidCallback? onBackPressed,
-  }) {
-    return AppBar(
-      backgroundColor: AppColors.white,
-      elevation: 2,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.blue),
-        onPressed: onBackPressed ?? () => Get.back(),
-      ),
-      title: Text(
-        title,
-        style: AppTextStyles.subHeading.copyWith(
-          color: AppColors.blue,
-          fontSize: 20,
-        ),
-      ),
-      centerTitle: true,
     );
   }
 }

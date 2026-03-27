@@ -1,11 +1,12 @@
 // lib/features/resources/controllers/resources_controller.dart
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/resource_model.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ResourcesController extends GetxController {
-  // Reactive state
   final _allResources = <ResourceModel>[].obs;
   final _filteredResources = <ResourceModel>[].obs;
   final _currentTabIndex = 0.obs;
@@ -13,18 +14,15 @@ class ResourcesController extends GetxController {
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
   final _selectedSubject = 'All'.obs;
-  final _showFavoritesOnly = false.obs; // NEW: Show favorites filter
-  final _favoriteResources =
-      <String>[].obs; // NEW: Resource IDs that are favorited
+  final _showFavoritesOnly = false.obs;
+  final _favoriteResources = <String>[].obs;
 
-  // Tab categories
   final List<String> categories = [
     'Ordinary Level',
     'Advanced Level',
     'Other Books',
   ];
 
-  // Getters
   List<ResourceModel> get allResources => _allResources;
   List<ResourceModel> get filteredResources => _filteredResources;
   int get currentTabIndex => _currentTabIndex.value;
@@ -42,27 +40,26 @@ class ResourcesController extends GetxController {
     loadFavorites();
   }
 
-  // Load resources
   Future<void> loadResources() async {
     try {
       _isLoading.value = true;
       _errorMessage.value = '';
 
-      // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 500));
+      final response = await Supabase.instance.client
+          .from('resources')
+          .select()
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
 
-      // Load mock data (replace with Supabase later)
-      _allResources.value = ResourceModel.mockList();
+      _allResources.value = (response as List).map(_fromRow).toList();
       _applyFilters();
-
       _isLoading.value = false;
     } catch (e) {
-      _errorMessage.value = 'Failed to load resources: ${e.toString()}';
+      _errorMessage.value = 'Failed to load resources';
       _isLoading.value = false;
     }
   }
 
-  // Load user's favorited resources
   Future<void> loadFavorites() async {
     try {
       final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -73,127 +70,85 @@ class ResourcesController extends GetxController {
           .select('resource_id')
           .eq('user_id', currentUserId);
 
-      _favoriteResources.value = (response as List)
-          .map((item) => item['resource_id'] as String)
-          .toList();
+      _favoriteResources.value =
+          (response as List).map((item) => item['resource_id'] as String).toList();
     } catch (e) {
-      print('Error loading favorites: $e');
+      debugPrint('Error loading favorites: $e');
     }
   }
 
-  // Check if resource is favorited
-  bool isFavorited(String resourceId) {
-    return _favoriteResources.contains(resourceId);
-  }
+  bool isFavorited(String resourceId) => _favoriteResources.contains(resourceId);
 
-  // Toggle favorite
   Future<void> toggleFavorite(String resourceId) async {
     try {
-      final isCurrentlyFavorited = isFavorited(resourceId);
       final resource = _allResources.firstWhere((r) => r.id == resourceId);
-
-      if (isCurrentlyFavorited) {
-        // Remove from favorites
+      if (isFavorited(resourceId)) {
         await _removeFavorite(resourceId);
         _favoriteResources.remove(resourceId);
-
         AppSnackbar.info('Removed', 'Removed ${resource.title} from favorites');
       } else {
-        // Add to favorites
         await _addFavorite(resourceId);
         _favoriteResources.add(resourceId);
-
-        AppSnackbar.success('Added', 'Added ${resource.title} to favorites');
+        AppSnackbar.success('Saved', 'Added ${resource.title} to favorites');
       }
-
-      // Refresh filters in case we're showing favorites only
       _applyFilters();
     } catch (e) {
-      AppSnackbar.error('Error', 'Failed to update favorite status');
+      AppSnackbar.error('Error', 'Failed to update favourite');
     }
   }
 
-  // Add resource to favorites (Supabase)
   Future<void> _addFavorite(String resourceId) async {
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) throw Exception('Not authenticated');
-
-      await Supabase.instance.client.from('user_favorites').insert({
-        'user_id': currentUserId,
-        'resource_id': resourceId,
-      });
-    } catch (e) {
-      throw Exception('Failed to add favorite: $e');
-    }
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+    await Supabase.instance.client
+        .from('user_favorites')
+        .insert({'user_id': userId, 'resource_id': resourceId});
   }
 
-  // Remove resource from favorites (Supabase)
   Future<void> _removeFavorite(String resourceId) async {
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) throw Exception('Not authenticated');
-
-      await Supabase.instance.client
-          .from('user_favorites')
-          .delete()
-          .eq('user_id', currentUserId)
-          .eq('resource_id', resourceId);
-    } catch (e) {
-      throw Exception('Failed to remove favorite: $e');
-    }
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+    await Supabase.instance.client
+        .from('user_favorites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('resource_id', resourceId);
   }
 
-  // Toggle show favorites only
   void toggleShowFavoritesOnly() {
     _showFavoritesOnly.value = !_showFavoritesOnly.value;
     _applyFilters();
   }
 
-  // Change tab
   void changeTab(int index) {
     if (index != _currentTabIndex.value) {
       _currentTabIndex.value = index;
-      _searchQuery.value = ''; // Clear search when changing tabs
+      _searchQuery.value = '';
       _selectedSubject.value = 'All';
-      _showFavoritesOnly.value = false; // Reset favorites filter on tab change
+      _showFavoritesOnly.value = false;
       _applyFilters();
     }
   }
 
-  // Search resources
   void searchResources(String query) {
     _searchQuery.value = query.toLowerCase();
     _applyFilters();
   }
 
-  // Filter by subject
   void filterBySubject(String subject) {
     _selectedSubject.value = subject;
     _applyFilters();
   }
 
-  // Apply all filters
   void _applyFilters() {
     var filtered = _allResources.toList();
-
-    // Filter by current tab category
-    final category = currentCategory;
-    filtered = filtered.where((r) => r.category == category).toList();
-
-    // Filter by favorites if enabled
+    filtered = filtered.where((r) => r.category == currentCategory).toList();
     if (_showFavoritesOnly.value) {
       filtered = filtered.where((r) => isFavorited(r.id)).toList();
     }
-
-    // Filter by subject if not "All"
     if (_selectedSubject.value != 'All') {
-      filtered = filtered
-          .where((r) => r.subject == _selectedSubject.value)
-          .toList();
+      filtered = filtered.where((r) => r.subject == _selectedSubject.value).toList();
     }
-
-    // Filter by search query
     if (_searchQuery.value.isNotEmpty) {
       filtered = filtered.where((r) {
         return r.title.toLowerCase().contains(_searchQuery.value) ||
@@ -201,15 +156,12 @@ class ResourcesController extends GetxController {
             (r.subject?.toLowerCase().contains(_searchQuery.value) ?? false);
       }).toList();
     }
-
     _filteredResources.value = filtered;
   }
 
-  // Get available subjects for current category
   List<String> getAvailableSubjects() {
-    final category = currentCategory;
     final subjects = _allResources
-        .where((r) => r.category == category && r.subject != null)
+        .where((r) => r.category == currentCategory && r.subject != null)
         .map((r) => r.subject!)
         .toSet()
         .toList();
@@ -217,38 +169,48 @@ class ResourcesController extends GetxController {
     return subjects;
   }
 
-  // Download resource
   Future<void> downloadResource(ResourceModel resource) async {
+    if (resource.fileUrl == null || resource.fileUrl!.isEmpty) {
+      AppSnackbar.error('Unavailable', 'No file available for this resource');
+      return;
+    }
     try {
-      AppSnackbar.info('Downloading', 'Downloading ${resource.title}...');
-
-      // Simulate download (replace with actual download logic)
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Update download count
-      final index = _allResources.indexWhere((r) => r.id == resource.id);
-      if (index != -1) {
-        _allResources[index] = resource.copyWith(
-          downloads: resource.downloads + 1,
-        );
+      AppSnackbar.info('Opening', 'Opening ${resource.title}...');
+      final uri = Uri.parse(resource.fileUrl!);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        // Track the download in DB
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId != null) {
+          await Future.wait([
+            Supabase.instance.client.from('downloads').insert({
+              'user_id': userId,
+              'resource_id': resource.id,
+            }),
+            Supabase.instance.client
+                .from('resources')
+                .update({'download_count': resource.downloads + 1})
+                .eq('id', resource.id),
+          ]);
+          // Update local state
+          final index = _allResources.indexWhere((r) => r.id == resource.id);
+          if (index != -1) {
+            _allResources[index] = resource.copyWith(downloads: resource.downloads + 1);
+          }
+        }
+      } else {
+        AppSnackbar.error('Error', 'Could not open the file');
       }
-
-      AppSnackbar.success(
-        'Success',
-        '${resource.title} downloaded successfully',
-      );
     } catch (e) {
-      AppSnackbar.error('Error', 'Failed to download resource');
+      AppSnackbar.error('Error', 'Failed to open resource');
     }
   }
 
-  // Refresh resources
   Future<void> refreshResources() async {
     await loadResources();
     await loadFavorites();
   }
 
-  // Reset filters
   void resetFilters() {
     _searchQuery.value = '';
     _selectedSubject.value = 'All';
@@ -256,13 +218,35 @@ class ResourcesController extends GetxController {
     _applyFilters();
   }
 
-  // Get resource count for category
-  int getResourceCountForCategory(String category) {
-    return _allResources.where((r) => r.category == category).length;
+  int getResourceCountForCategory(String category) =>
+      _allResources.where((r) => r.category == category).length;
+
+  int getFavoritesCount() => _favoriteResources.length;
+
+  // ─── Mapper ─────────────────────────────────────────────────────────────────
+
+  ResourceModel _fromRow(dynamic row) {
+    final r = row as Map<String, dynamic>;
+    return ResourceModel(
+      id: r['id'] ?? '',
+      title: r['title'] ?? '',
+      category: _mapCategory(r['category'] ?? ''),
+      subject: r['subject'],
+      description: r['description'] ?? '',
+      fileUrl: r['file_url'],
+      imageUrl: r['thumbnail_url'],
+      uploadedBy: r['uploaded_by'] ?? '',
+      uploaderName: r['uploader_name'] ?? '',
+      uploadedDate: DateTime.tryParse(r['created_at'] ?? '') ?? DateTime.now(),
+      downloads: r['download_count'] ?? 0,
+    );
   }
 
-  // Get favorites count
-  int getFavoritesCount() {
-    return _favoriteResources.length;
+  String _mapCategory(String db) {
+    switch (db.toLowerCase()) {
+      case 'o/l': return 'Ordinary Level';
+      case 'a/l': return 'Advanced Level';
+      default: return db.isNotEmpty ? db : 'Other Books';
+    }
   }
 }

@@ -15,6 +15,7 @@ class EventModel {
   final int registeredCount;
   final bool isRegistered;
   final bool isFeatured;
+  final double registrationFee;
 
   EventModel({
     required this.id,
@@ -30,7 +31,10 @@ class EventModel {
     this.registeredCount = 0,
     this.isRegistered = false,
     this.isFeatured = false,
+    this.registrationFee = 0.0,
   });
+
+  bool get isPaid => registrationFee > 0;
 
   // Getters for display
   String get displayDate => _formatDate(date);
@@ -108,6 +112,7 @@ class EventModel {
     int? registeredCount,
     bool? isRegistered,
     bool? isFeatured,
+    double? registrationFee,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -123,6 +128,7 @@ class EventModel {
       registeredCount: registeredCount ?? this.registeredCount,
       isRegistered: isRegistered ?? this.isRegistered,
       isFeatured: isFeatured ?? this.isFeatured,
+      registrationFee: registrationFee ?? this.registrationFee,
     );
   }
 

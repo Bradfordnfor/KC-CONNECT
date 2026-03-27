@@ -1,8 +1,12 @@
-// lib/views/resources/widgets/upload_resource_modal.dart
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/utils/validators.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UploadResourceModal extends StatefulWidget {
   const UploadResourceModal({super.key});
@@ -14,10 +18,11 @@ class UploadResourceModal extends StatefulWidget {
 class _UploadResourceModalState extends State<UploadResourceModal> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   String _subject = 'Mathematics';
   String _category = 'O/L';
-  String? _selectedFileName;
+  PlatformFile? _pickedFile;
   bool _isUploading = false;
 
   final _subjects = [
@@ -66,27 +71,42 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
             ),
             const SizedBox(height: 16),
 
-            // File Selection
+            AppMultilineField(
+              label: 'Description (optional)',
+              hint: 'Brief description of this resource',
+              controller: _descriptionController,
+              minLines: 2,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // File picker button
             OutlinedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.attach_file),
-              label: Text(_selectedFileName ?? 'Select File (PDF/DOCX)'),
+              onPressed: _isUploading ? null : _pickFile,
+              icon: Icon(
+                _pickedFile != null ? Icons.check_circle : Icons.attach_file,
+                color: _pickedFile != null ? AppColors.success : AppColors.blue,
+              ),
+              label: Text(
+                _pickedFile != null
+                    ? '${_pickedFile!.name}  '
+                        '(${FileSizeValidator.formatBytes(_pickedFile!.size)})'
+                    : 'Select File (PDF / DOCX)',
+                overflow: TextOverflow.ellipsis,
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                side: const BorderSide(color: AppColors.blue),
+                side: BorderSide(
+                  color:
+                      _pickedFile != null ? AppColors.success : AppColors.blue,
+                ),
               ),
             ),
 
             if (_isUploading) ...[
               const SizedBox(height: 16),
-              const Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(color: AppColors.blue),
-                    SizedBox(height: 8),
-                    Text('Uploading...'),
-                  ],
-                ),
+              AppUploadingIndicator(
+                message: 'Uploading ${_pickedFile?.name ?? 'file'}...',
               ),
             ],
 
@@ -136,7 +156,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           items: items.map((item) {
             return DropdownMenuItem(value: item, child: Text(item));
           }).toList(),
@@ -151,34 +171,82 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
     );
   }
 
-  void _pickFile() {
-    // TODO: Implement file_picker
-    setState(() => _selectedFileName = 'sample_document.pdf');
-    AppSnackbar.info('File Selected', 'File picker will be implemented');
-  }
-
-  void _handleSubmit() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedFileName == null) {
-        AppSnackbar.error('No File', 'Please select a file');
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx', 'doc'],
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+      final sizeError = FileSizeValidator.validate(file.size, 20);
+      if (sizeError != null) {
+        AppSnackbar.error('File Too Large', sizeError);
         return;
       }
+      setState(() => _pickedFile = file);
+    }
+  }
 
-      setState(() => _isUploading = true);
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_pickedFile == null || _pickedFile!.bytes == null) {
+      AppSnackbar.error('No File', 'Please select a file to upload');
+      return;
+    }
 
-      // TODO: Upload to Supabase
-      // Get uploader name from auth: authController.currentUser.name
-      await Future.delayed(const Duration(seconds: 2));
+    setState(() => _isUploading = true);
 
-      setState(() => _isUploading = false);
-      AppSnackbar.success('Success', 'Resource uploaded');
-      Navigator.pop(context);
+    try {
+      final authController = Get.find<AuthController>();
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      final uploaderName =
+          authController.currentUser?['full_name'] as String? ?? 'Admin';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final safeName =
+          _pickedFile!.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final storagePath = '$userId/${timestamp}_$safeName';
+
+      await Supabase.instance.client.storage
+          .from('resources')
+          .uploadBinary(
+            storagePath,
+            _pickedFile!.bytes!,
+            fileOptions: const FileOptions(upsert: false),
+          );
+
+      final fileUrl = Supabase.instance.client.storage
+          .from('resources')
+          .getPublicUrl(storagePath);
+
+      await Supabase.instance.client.from('resources').insert({
+        'title': _titleController.text.trim(),
+        'subject': _subject,
+        'category': _category,
+        'description': _descriptionController.text.trim(),
+        'file_url': fileUrl,
+        'uploaded_by': userId,
+        'uploader_name': uploaderName,
+        'download_count': 0,
+        'status': 'active',
+      });
+
+      if (mounted) Navigator.pop(context);
+      AppSnackbar.success('Uploaded', 'Resource uploaded successfully');
+    } catch (e) {
+      debugPrint('Upload resource error: $e');
+      AppSnackbar.error('Error', 'Failed to upload resource');
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 }

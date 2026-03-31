@@ -1,10 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/models/message_model.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/features/chat/controllers/learn_controller.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LearnPage extends StatelessWidget {
   const LearnPage({super.key});
@@ -221,13 +224,8 @@ class LearnPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: messages.length,
       itemBuilder: (context, index) {
-        final message = messages[index];
-        return _buildMessageBubble(
-          message.senderName,
-          message.content,
-          _formatTime(message.timestamp),
-          message.isMe,
-        );
+        final message = messages[index] as MessageModel;
+        return _buildMessageBubble(context, message);
       },
     );
   }
@@ -239,27 +237,23 @@ class LearnPage extends StatelessWidget {
     return '$hour:$minute $period';
   }
 
-  Widget _buildMessageBubble(
-    String sender,
-    String message,
-    String time,
-    bool isMe,
-  ) {
+  Widget _buildMessageBubble(BuildContext context, MessageModel message) {
+    final isMe = message.isMe;
+    final time = _formatTime(message.timestamp);
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         constraints: BoxConstraints(maxWidth: Get.width * 0.75),
         child: Column(
-          crossAxisAlignment: isMe
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             if (!isMe)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4, left: 4),
                 child: Text(
-                  sender,
+                  message.senderName,
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.blue,
                     fontWeight: FontWeight.bold,
@@ -267,55 +261,204 @@ class LearnPage extends StatelessWidget {
                   ),
                 ),
               ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isMe ? AppColors.blue : AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message,
-                    style: AppTextStyles.body.copyWith(
-                      color: isMe ? AppColors.white : Colors.black87,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    time,
-                    style: AppTextStyles.caption.copyWith(
-                      color: isMe
-                          ? AppColors.white.withOpacity(0.8)
-                          : Colors.grey[500],
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            if (message.isImage && message.fileUrl != null)
+              _buildImageBubble(context, message, isMe, time)
+            else if (message.isFile && message.fileUrl != null)
+              _buildFileBubble(message, isMe, time)
+            else
+              _buildTextBubble(message.content, isMe, time),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInputAreaWithAIButton(LearnController controller) {
+  Widget _buildTextBubble(String text, bool isMe, String time) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isMe ? AppColors.blue : AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text, style: AppTextStyles.body.copyWith(color: isMe ? AppColors.white : Colors.black87, fontSize: 14)),
+          const SizedBox(height: 4),
+          Text(time, style: AppTextStyles.caption.copyWith(color: isMe ? AppColors.white.withValues(alpha: 0.8) : Colors.grey[500], fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageBubble(BuildContext context, MessageModel message, bool isMe, String time) {
+    return GestureDetector(
+      onTap: () => _showFullImage(context, message.fileUrl!),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              CachedNetworkImage(
+                imageUrl: message.fileUrl!,
+                width: 220,
+                height: 200,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(width: 220, height: 200, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
+                errorWidget: (_, __, ___) => Container(width: 220, height: 200, color: Colors.grey[200], child: const Icon(Icons.broken_image, size: 40)),
+              ),
+              Positioned(
+                bottom: 6, right: 8,
+                child: Text(time, style: AppTextStyles.caption.copyWith(color: Colors.white, fontSize: 10, shadows: [const Shadow(color: Colors.black54, blurRadius: 4)])),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileBubble(MessageModel message, bool isMe, String time) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isMe ? AppColors.blue : AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(color: (isMe ? AppColors.white : AppColors.blue).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+            child: Icon(Icons.insert_drive_file, color: isMe ? AppColors.white : AppColors.blue, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message.fileName ?? 'File', style: AppTextStyles.body.copyWith(color: isMe ? AppColors.white : Colors.black87, fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(message.formattedFileSize, style: AppTextStyles.caption.copyWith(color: isMe ? AppColors.white.withValues(alpha: 0.8) : Colors.grey[500], fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () async {
+              final uri = Uri.tryParse(message.fileUrl!);
+              if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            child: Icon(Icons.download, color: isMe ? AppColors.white : AppColors.blue, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, String imageUrl) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
+      body: Center(child: InteractiveViewer(child: CachedNetworkImage(imageUrl: imageUrl, fit: BoxFit.contain))),
+    )));
+  }
+
+  void _showAttachmentSheet(BuildContext context, LearnController controller) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildAttachOption(
+                icon: Icons.camera_alt,
+                label: 'Camera',
+                color: AppColors.blue,
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.sendImageFromCamera();
+                },
+              ),
+              _buildAttachOption(
+                icon: Icons.photo_library,
+                label: 'Gallery',
+                color: Colors.purple,
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.sendImageFromGallery();
+                },
+              ),
+              _buildAttachOption(
+                icon: Icons.insert_drive_file,
+                label: 'File',
+                color: Colors.orange,
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.sendFile();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputAreaWithAIButton(LearnController controller) {
+    return Builder(
+      builder: (context) => Container(
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 15),
       decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.blue.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.add, color: AppColors.blue),
+              onPressed: () => _showAttachmentSheet(context, controller),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller.messageController,
@@ -381,6 +524,7 @@ class LearnPage extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

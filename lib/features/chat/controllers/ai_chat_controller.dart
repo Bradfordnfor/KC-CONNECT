@@ -34,7 +34,7 @@ class AiChatController extends GetxController {
   void onInit() {
     super.onInit();
     if (_apiKey.isEmpty) {
-      print('⚠️ Gemini API key missing in .env');
+      debugPrint('⚠️ Gemini API key missing in .env');
     }
   }
 
@@ -87,7 +87,7 @@ class AiChatController extends GetxController {
         ),
       );
 
-      print('Error: $e');
+      debugPrint('Error: $e');
     }
   }
 
@@ -150,11 +150,11 @@ class AiChatController extends GetxController {
         return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ??
             'No response generated.';
       } else {
-        print('API ERROR: ${response.body}');
+        debugPrint('API ERROR: ${response.body}');
         return '⚠️ API Error: ${response.statusCode}';
       }
     } catch (e) {
-      print('Gemini Error: $e');
+      debugPrint('Gemini Error: $e');
       return '⚠️ Network error. Please try again.';
     }
   }

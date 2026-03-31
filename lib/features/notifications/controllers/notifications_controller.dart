@@ -2,12 +2,14 @@
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/notification_model.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationsController extends GetxController {
   final _allNotifications = <NotificationModel>[].obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
+  RealtimeChannel? _channel;
 
   List<NotificationModel> get allNotifications => _allNotifications;
   List<NotificationModel> get unreadNotifications =>
@@ -23,6 +25,53 @@ class NotificationsController extends GetxController {
   void onInit() {
     super.onInit();
     loadNotifications();
+    _subscribeToRealtime();
+  }
+
+  void _subscribeToRealtime() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _channel = Supabase.instance.client
+        .channel('notifications_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            final n = payload.newRecord;
+            _allNotifications.insert(
+              0,
+              NotificationModel(
+                id: n['id'],
+                title: n['title'] ?? '',
+                description: n['message'] ?? '',
+                timestamp:
+                    DateTime.tryParse(n['created_at'] ?? '') ?? DateTime.now(),
+                isRead: n['is_read'] ?? false,
+                type: n['type'] ?? 'system',
+                actionUrl: n['action_url'],
+                metadata: n['metadata'] as Map<String, dynamic>?,
+                actionId: n['action_id'],
+                actionType: n['action_type'],
+              ),
+            );
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void onClose() {
+    if (_channel != null) {
+      Supabase.instance.client.removeChannel(_channel!);
+    }
+    super.onClose();
   }
 
   Future<void> loadNotifications() async {
@@ -55,6 +104,8 @@ class NotificationsController extends GetxController {
               type: n['type'] ?? 'system',
               actionUrl: n['action_url'],
               metadata: n['metadata'],
+              actionId: n['action_id'],
+              actionType: n['action_type'],
             ),
           )
           .toList();
@@ -148,6 +199,84 @@ class NotificationsController extends GetxController {
       } else {
         Get.toNamed(notification.actionUrl!);
       }
+    }
+  }
+
+  Future<void> acceptMentorshipRequest(
+      String notificationId, String requestId) async {
+    try {
+      // Get student_id from the request
+      final req = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('student_id')
+          .eq('id', requestId)
+          .single();
+
+      final studentId = req['student_id'] as String;
+
+      // Accept the request
+      await Supabase.instance.client
+          .from('mentorship_requests')
+          .update({'status': 'accepted'})
+          .eq('id', requestId);
+
+      // Get alumni (current user) info
+      final me = Get.find<AuthController>().currentUser;
+      final mentorName = me?['full_name'] ?? 'Your mentor';
+      final mentorEmail = me?['email'] ?? '';
+
+      // Notify the student
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': studentId,
+        'title': 'Mentorship Request Accepted!',
+        'message':
+            '$mentorName accepted your request. Reach them at: $mentorEmail',
+        'type': 'mentorship',
+        'action_type': 'mentorship_accepted',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      await markAsRead(notificationId);
+      AppSnackbar.success('Accepted', 'Mentorship request accepted.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to accept request.');
+    }
+  }
+
+  Future<void> rejectMentorshipRequest(
+      String notificationId, String requestId) async {
+    try {
+      final req = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('student_id')
+          .eq('id', requestId)
+          .single();
+
+      final studentId = req['student_id'] as String;
+
+      await Supabase.instance.client
+          .from('mentorship_requests')
+          .update({'status': 'declined'})
+          .eq('id', requestId);
+
+      final me = Get.find<AuthController>().currentUser;
+      final mentorName = me?['full_name'] ?? 'The alumni';
+
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': studentId,
+        'title': 'Mentorship Request Declined',
+        'message': '$mentorName is unable to take on new mentees at this time.',
+        'type': 'mentorship',
+        'action_type': 'mentorship_rejected',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      await markAsRead(notificationId);
+      AppSnackbar.info('Done', 'Mentorship request declined.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to decline request.');
     }
   }
 

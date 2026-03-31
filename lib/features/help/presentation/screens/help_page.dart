@@ -1,8 +1,17 @@
 // lib/features/help/presentation/screens/help_page.dart
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+// ── Contact details ── update these when going to production ──────────────────
+const _supportEmail = 'kcconnectnoreply@gmail.com';
+const _supportPhone = '+237674364902';
+const _whatsappNumber = '237674364902'; // no leading +
+// ──────────────────────────────────────────────────────────────────────────────
 
 class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
@@ -21,7 +30,7 @@ class _HelpPageState extends State<HelpPage> {
     FAQItem(
       question: 'How can I download resources?',
       answer:
-          'Navigate to the Resources page, select the category (O/L, A/L, or Other Books), find the resource you need, and tap on it to download. You can also save resources as favorites for quick access.',
+          'Navigate to the Resources page, select the category (O/L, A/L, or Other Books), find the resource you need, and tap on it to download. You can also save resources as favourites for quick access.',
     ),
     FAQItem(
       question: 'How do I request mentorship from an alumni?',
@@ -55,26 +64,20 @@ class _HelpPageState extends State<HelpPage> {
     ),
   ];
 
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      AppSnackbar.error('Error', 'Could not open link. Please try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.blue),
-          onPressed: () => Get.back(),
-        ),
-        title: Text(
-          'Help & Support',
-          style: AppTextStyles.subHeading.copyWith(
-            color: AppColors.blue,
-            fontSize: 20,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: MainNavigation.buildSecondaryAppBar(context, title: 'Help & Support'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -112,15 +115,9 @@ class _HelpPageState extends State<HelpPage> {
               child: _buildContactCard(
                 icon: Icons.email_outlined,
                 title: 'Email',
-                subtitle: 'support@kc.com',
+                subtitle: _supportEmail,
                 color: AppColors.blue,
-                onTap: () {
-                  Get.snackbar(
-                    'Email',
-                    'Opening email client...',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
-                },
+                onTap: () => _launch('mailto:$_supportEmail'),
               ),
             ),
             const SizedBox(width: 12),
@@ -128,15 +125,9 @@ class _HelpPageState extends State<HelpPage> {
               child: _buildContactCard(
                 icon: Icons.phone_outlined,
                 title: 'Phone',
-                subtitle: '+237 123 456',
+                subtitle: _supportPhone,
                 color: AppColors.deepRed,
-                onTap: () {
-                  Get.snackbar(
-                    'Phone',
-                    'Opening phone app...',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
-                },
+                onTap: () => _launch('tel:$_supportPhone'),
               ),
             ),
           ],
@@ -150,13 +141,7 @@ class _HelpPageState extends State<HelpPage> {
                 title: 'WhatsApp',
                 subtitle: 'Chat with us',
                 color: Colors.green,
-                onTap: () {
-                  Get.snackbar(
-                    'WhatsApp',
-                    'Opening WhatsApp...',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
-                },
+                onTap: () => _launch('https://wa.me/$_whatsappNumber'),
               ),
             ),
             const SizedBox(width: 12),
@@ -164,15 +149,12 @@ class _HelpPageState extends State<HelpPage> {
               child: _buildContactCard(
                 icon: Icons.language,
                 title: 'Website',
-                subtitle: 'Visit our site',
-                color: AppColors.blue,
-                onTap: () {
-                  Get.snackbar(
-                    'Website',
-                    'Opening browser...',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
-                },
+                subtitle: 'Coming soon',
+                color: Colors.grey,
+                onTap: () => AppSnackbar.info(
+                  'Coming Soon',
+                  'Our website is under construction.',
+                ),
               ),
             ),
           ],
@@ -197,7 +179,7 @@ class _HelpPageState extends State<HelpPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -209,7 +191,7 @@ class _HelpPageState extends State<HelpPage> {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 28),
@@ -230,6 +212,8 @@ class _HelpPageState extends State<HelpPage> {
                 fontSize: 11,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -257,7 +241,7 @@ class _HelpPageState extends State<HelpPage> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -284,7 +268,8 @@ class _HelpPageState extends State<HelpPage> {
   Widget _buildFAQTile(FAQItem faq) {
     return ExpansionTile(
       tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+      childrenPadding:
+          const EdgeInsets.only(left: 16, right: 16, bottom: 16),
       title: Text(
         faq.question,
         style: AppTextStyles.body.copyWith(
@@ -328,7 +313,7 @@ class _HelpPageState extends State<HelpPage> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -339,7 +324,7 @@ class _HelpPageState extends State<HelpPage> {
             children: [
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.feedback_outlined,
                     color: AppColors.blue,
                     size: 24,
@@ -367,9 +352,7 @@ class _HelpPageState extends State<HelpPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    _showFeedbackDialog();
-                  },
+                  onPressed: _showFeedbackDialog,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.blue,
                     foregroundColor: AppColors.white,
@@ -395,18 +378,18 @@ class _HelpPageState extends State<HelpPage> {
   }
 
   void _showFeedbackDialog() {
-    final TextEditingController feedbackController = TextEditingController();
+    final feedbackController = TextEditingController();
     String selectedType = 'Feedback';
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(
           'Send Feedback',
           style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
         ),
         content: StatefulBuilder(
-          builder: (context, setState) => Column(
+          builder: (context, setDialogState) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -418,25 +401,23 @@ class _HelpPageState extends State<HelpPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: selectedType,
+              InputDecorator(
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   isDense: true,
                 ),
-                items: ['Feedback', 'Bug Report', 'Feature Request', 'Other']
-                    .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => selectedType = value!);
-                },
+                child: DropdownButton<String>(
+                  value: selectedType,
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  isDense: true,
+                  items: ['Feedback', 'Bug Report', 'Feature Request', 'Other']
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => selectedType = v!),
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -463,38 +444,51 @@ class _HelpPageState extends State<HelpPage> {
           TextButton(
             onPressed: () {
               feedbackController.dispose();
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
             },
             child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (feedbackController.text.trim().isEmpty) {
-                Get.snackbar(
-                  'Error',
-                  'Please enter your feedback',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: AppColors.red,
-                  colorText: AppColors.white,
-                );
+            onPressed: () async {
+              final message = feedbackController.text.trim();
+              if (message.isEmpty) {
+                AppSnackbar.error('Empty', 'Please enter your feedback.');
                 return;
               }
-
+              Navigator.pop(dialogContext);
               feedbackController.dispose();
-              Navigator.pop(context);
-              Get.snackbar(
-                'Thank You!',
-                'Your feedback has been sent successfully',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppColors.blue,
-                colorText: AppColors.white,
-              );
+              await _submitFeedback(selectedType, message);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.blue),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.blue,
+              foregroundColor: AppColors.white,
+            ),
             child: const Text('Send'),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _submitFeedback(String type, String message) async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final now = DateTime.now().toIso8601String();
+      await Supabase.instance.client.from('feedback').insert({
+        'user_id': userId,
+        'type': type.toLowerCase().replaceAll(' ', '_'),
+        'message': message,
+        'status': 'new',
+        'priority': 'normal',
+        'created_at': now,
+        'updated_at': now,
+      });
+    } catch (_) {
+      // Silent fail — still thank the user
+    }
+    AppSnackbar.success(
+      'Thank You!',
+      'Your feedback has been submitted successfully.',
     );
   }
 }

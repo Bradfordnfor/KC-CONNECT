@@ -21,6 +21,7 @@ class _AddProductModalState extends State<AddProductModal> {
 
   PlatformFile? _pickedImage;
   bool _isUploading = false;
+  String _selectedCategory = 'clothing';
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +70,24 @@ class _AddProductModalState extends State<AddProductModal> {
               controller: _descriptionController,
               minLines: 3,
               maxLines: 5,
+            ),
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: _selectedCategory,
+              decoration: const InputDecoration(
+                labelText: 'Category',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'clothing', child: Text('Clothing')),
+                DropdownMenuItem(value: 'books', child: Text('Books')),
+                DropdownMenuItem(value: 'electronics', child: Text('Electronics')),
+                DropdownMenuItem(value: 'stationery', child: Text('Stationery')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: (val) => setState(() => _selectedCategory = val!),
             ),
             const SizedBox(height: 16),
 
@@ -184,6 +203,7 @@ class _AddProductModalState extends State<AddProductModal> {
         'description': _descriptionController.text.trim(),
         'stock_quantity': int.parse(_stockController.text.trim()),
         'primary_image_url': imageUrl,
+        'category': _selectedCategory,
         'status': 'active',
         'added_by': userId,
       });

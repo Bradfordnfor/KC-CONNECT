@@ -5,6 +5,7 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/alumni/presentation/widgets/alumni_profile_setup_sheet.dart';
 import 'package:kc_connect/features/profile/controllers/profile_controller.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -116,13 +117,50 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        SizedBox(
-          width: 160,
-          child: PrimaryButton(
-            label: 'Edit Profile',
-            onPressed: () => _showEditProfileSheet(context, controller),
-            height: 40,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 140,
+              child: PrimaryButton(
+                label: 'Edit Profile',
+                onPressed: () => _showEditProfileSheet(context, controller),
+                height: 40,
+              ),
+            ),
+            if ((controller.user?['role'] as String? ?? '') == 'alumni') ...[
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 150,
+                child: OutlinedButton.icon(
+                  onPressed: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => const AlumniProfileSetupSheet(),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.blue),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: const Icon(Icons.school_outlined,
+                      color: AppColors.blue, size: 16),
+                  label: Text(
+                    'Alumni Info',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.blue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     ));

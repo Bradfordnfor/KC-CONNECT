@@ -156,6 +156,9 @@ class EventsController extends GetxController {
         _applyFilters();
       }
 
+      // Send confirmation notification to the user
+      await _sendRegistrationNotification(userId, event);
+
       AppSnackbar.success(
         'Registered!',
         'You have been registered for ${event.title}',
@@ -241,6 +244,7 @@ class EventsController extends GetxController {
       host: r['host_name'],
       location: r['venue'],
       imageUrl: r['banner_image_url'],
+      meetingLink: r['meeting_link'] as String?,
       capacity: r['max_capacity'],
       registeredCount: r['current_registrations'] ?? 0,
       isFeatured: r['is_featured'] ?? false,
@@ -250,4 +254,21 @@ class EventsController extends GetxController {
 
   String _capitalise(String s) =>
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  Future<void> _sendRegistrationNotification(String userId, EventModel event) async {
+    try {
+      final onlineNote = event.isOnline ? ' Join link will be available in the app.' : '';
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': userId,
+        'title': 'Registration Confirmed',
+        'message': 'You are registered for "${event.title}" on ${event.displayDate} at ${event.time}.$onlineNote',
+        'type': 'event',
+        'priority': 'normal',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      // Non-fatal — registration succeeded even if notification fails
+    }
+  }
 }

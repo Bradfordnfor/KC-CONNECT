@@ -6,79 +6,15 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/cards/alumni_card.dart';
-import 'package:kc_connect/features/alumni/presentation/screens/alumni_details_page.dart';
+import 'package:kc_connect/features/alumni/controllers/alumni_controller.dart';
 
-class AlumniPage extends StatefulWidget {
+class AlumniPage extends StatelessWidget {
   const AlumniPage({super.key});
 
   @override
-  State<AlumniPage> createState() => _AlumniPageState();
-}
-
-class _AlumniPageState extends State<AlumniPage> {
-  final TextEditingController _searchController = TextEditingController();
-
-  // Mock data - replace with real data from Supabase later
-  final List<Map<String, dynamic>> alumniList = [
-    {
-      'id': '1',
-      'imageUrl': 'assets/images/kc-connect_icon.png',
-      'name': 'Eng NYAKE TUDORA',
-      'role': 'Mechanical Engineering grad',
-      'school': 'U.B(C.O.T), CMR',
-      'classInfo': 'Class of 2021',
-      'bio':
-          'Passionate mechanical engineer with expertise in automotive systems...',
-      'career': 'Currently working at Toyota as Senior Engineer...',
-      'vision': 'To revolutionize automotive industry in Africa...',
-    },
-    {
-      'id': '2',
-      'imageUrl': 'assets/images/kc-connect_icon.png',
-      'name': 'NKENGAFOUA CALEB',
-      'role': 'Computer Engineering Student',
-      'school': 'Landmark, CMR',
-      'classInfo': 'Class of 2023',
-      'bio':
-          'Software engineer passionate about building scalable applications...',
-      'career': 'Full-Stack Developer at INOFIXZ...',
-      'vision': 'To empower young Africans through technology...',
-    },
-    {
-      'id': '3',
-      'imageUrl': 'assets/images/kc-connect_icon.png',
-      'name': 'AYUK SANDRINE',
-      'role': 'Mastercard Foundation Student',
-      'school': 'ALU, Rwanda',
-      'classInfo': 'Class of 2023',
-      'bio': 'Aspiring entrepreneur focused on fintech solutions...',
-      'career': 'Product Manager at fintech startup...',
-      'vision': 'To create inclusive financial solutions for Africa...',
-    },
-    {
-      'id': '4',
-      'imageUrl': 'assets/images/kc-connect_icon.png',
-      'name': 'BEZIA PRECIOUS',
-      'role': 'Computer Engineering Student',
-      'school': 'U.B(F.E.T), CMR',
-      'classInfo': 'Class of 2023',
-      'bio':
-          'I\'m a software engineer passionate about building scalable web applications that make learning and collaboration easier. During my time at KC, I was part of the ICT Club and helped launch the first digital noticeboard for the campus. I believe in continuous learning and sharing knowledge with the next generation of tech leaders.',
-      'career':
-          'Currently a Full-Stack Developer at INOFIXZ, where I lead a small team focused on building online learning platforms for African universities. My career journey began with freelance web projects before joining a startup that connected students to digital mentors.',
-      'vision':
-          'To empower 10,000 young Africans through technology-driven education and mentorship by 2030. I aim to create opportunities for students from underserved communities to explore software development, innovation, and entrepreneurship.',
-    },
-  ];
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.put(AlumniController());
+
     return Material(
       color: AppColors.backgroundColor,
       child: SafeArea(
@@ -91,9 +27,9 @@ class _AlumniPageState extends State<AlumniPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildBannerCarousel(),
-                    _buildListingsHeaderWithSearch(),
+                    _buildListingsHeaderWithSearch(controller),
                     const SizedBox(height: 16),
-                    _buildAlumniList(),
+                    _buildAlumniList(controller),
                   ],
                 ),
               ),
@@ -106,7 +42,7 @@ class _AlumniPageState extends State<AlumniPage> {
 
   Widget _buildBannerCarousel() {
     return CarouselWidget(
-      margin: EdgeInsets.all(16),
+      margin: const EdgeInsets.all(16),
       height: 155,
       autoPlay: false,
       showIndicators: false,
@@ -126,7 +62,6 @@ class _AlumniPageState extends State<AlumniPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               Row(
                 children: [
                   Column(
@@ -138,7 +73,6 @@ class _AlumniPageState extends State<AlumniPage> {
                     ],
                   ),
                   const SizedBox(width: 16),
-                  // Text content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +114,7 @@ class _AlumniPageState extends State<AlumniPage> {
       width: 35,
       height: 35,
       decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.2),
+        color: AppColors.white.withValues(alpha: 0.2),
         shape: BoxShape.circle,
       ),
       child: Stack(
@@ -214,12 +148,11 @@ class _AlumniPageState extends State<AlumniPage> {
     );
   }
 
-  Widget _buildListingsHeaderWithSearch() {
+  Widget _buildListingsHeaderWithSearch(AlumniController controller) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          // Listings icon and text on the left
           const Icon(Icons.tune, color: AppColors.blue, size: 24),
           const SizedBox(width: 8),
           Text(
@@ -229,10 +162,7 @@ class _AlumniPageState extends State<AlumniPage> {
               fontSize: 20,
             ),
           ),
-
           const SizedBox(width: 30),
-
-          // Search bar on the right
           Expanded(
             child: Container(
               height: 35,
@@ -241,19 +171,14 @@ class _AlumniPageState extends State<AlumniPage> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  setState(() {
-                    // Filter alumni list
-                  });
-                },
+                onChanged: controller.searchAlumni,
                 decoration: InputDecoration(
                   hintText: 'Search',
                   hintStyle: AppTextStyles.body.copyWith(
@@ -286,24 +211,55 @@ class _AlumniPageState extends State<AlumniPage> {
     );
   }
 
-  Widget _buildAlumniList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: alumniList.length,
-      itemBuilder: (context, index) {
-        final alumni = alumniList[index];
-        return AlumniCard(
-          imageUrl: alumni['imageUrl'],
-          name: alumni['name'],
-          role: alumni['role'],
-          school: alumni['school'],
-          classInfo: alumni['classInfo'],
-          onTap: () {
-            Get.toNamed(AppRoutes.alumniDetail, arguments: alumni);
-          },
+  Widget _buildAlumniList(AlumniController controller) {
+    return Obx(() {
+      if (controller.isLoading) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(40),
+            child: CircularProgressIndicator(color: AppColors.blue),
+          ),
         );
-      },
-    );
+      }
+
+      if (controller.filteredAlumni.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              children: [
+                Icon(Icons.people_outline,
+                    size: 64, color: AppColors.blue.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                Text(
+                  'No alumni found',
+                  style: AppTextStyles.subHeading
+                      .copyWith(color: AppColors.blue),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: controller.filteredAlumni.length,
+        itemBuilder: (context, index) {
+          final alumni = controller.filteredAlumni[index];
+          return AlumniCard(
+            imageUrl: alumni.imageUrl,
+            name: alumni.name,
+            role: alumni.role,
+            school: alumni.school,
+            classInfo: alumni.classInfo,
+            onTap: () {
+              Get.toNamed(AppRoutes.alumniDetail, arguments: alumni.toMap());
+            },
+          );
+        },
+      );
+    });
   }
 }

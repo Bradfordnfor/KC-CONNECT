@@ -67,7 +67,7 @@ class OTPVerificationScreen extends StatelessWidget {
                       const SizedBox(height: 8),
 
                       Text(
-                        'Check your email for the OTP code',
+                        'Your request has been submitted. An admin will review it and send your OTP via email once approved.',
                         style: AppTextStyles.body.copyWith(
                           color: AppColors.textSecondary,
                         ),

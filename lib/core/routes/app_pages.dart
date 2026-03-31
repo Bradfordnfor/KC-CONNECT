@@ -1,6 +1,7 @@
 // lib/core/routes/app_pages.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/navigation/main_navigation.dart';
+import 'package:kc_connect/features/admin/presentation/screens/admin_navigation_screen.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:kc_connect/features/auth/presentation/screens/login_screen.dart';
@@ -32,6 +33,13 @@ class AppPages {
     GetPage(
       name: AppRoutes.main, // e.g '/main'
       page: () => MainNavigation(),
+    ),
+
+    GetPage(
+      name: AppRoutes.admin,
+      page: () => AdminMainPage(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 300),
     ),
 
     GetPage(

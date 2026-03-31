@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/controllers/navigation_controller.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/config/app_constants.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
@@ -171,7 +172,7 @@ class AdminMainPage extends StatelessWidget {
                     Text(
                       'Manage KC Connect',
                       style: AppTextStyles.body.copyWith(
-                        color: AppColors.white.withOpacity(0.8),
+                        color: AppColors.white.withValues(alpha: 0.8),
                       ),
                     ),
                   ],
@@ -222,11 +223,11 @@ class AdminMainPage extends StatelessWidget {
                     _buildDrawerItem(
                       context,
                       icon: Icons.work,
-                      title: 'Switch to Staff',
+                      title: 'Switch to Staff View',
                       textColor: AppColors.white,
                       onTap: () {
                         Navigator.pop(context);
-                        Get.back(); // Return to main app
+                        Get.offAllNamed(AppRoutes.main);
                       },
                     ),
                   ],
@@ -256,7 +257,7 @@ class AdminMainPage extends StatelessWidget {
         ),
       ),
       onTap: onTap,
-      hoverColor: AppColors.white.withOpacity(0.1),
+      hoverColor: AppColors.white.withValues(alpha: 0.1),
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }

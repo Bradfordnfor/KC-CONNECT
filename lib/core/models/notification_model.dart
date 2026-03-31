@@ -10,6 +10,8 @@ class NotificationModel {
   type; // 'event', 'resource', 'announcement', 'mentorship', 'system'
   final String? actionUrl; // Route to navigate when tapped
   final Map<String, dynamic>? metadata; // Additional data for the notification
+  final String? actionId; // ID of related record (e.g. mentorship_request id)
+  final String? actionType; // Sub-type (e.g. 'mentorship_request', 'mentorship_accepted')
 
   NotificationModel({
     required this.id,
@@ -20,6 +22,8 @@ class NotificationModel {
     required this.type,
     this.actionUrl,
     this.metadata,
+    this.actionId,
+    this.actionType,
   });
 
   // Getters for display
@@ -92,6 +96,8 @@ class NotificationModel {
     String? type,
     String? actionUrl,
     Map<String, dynamic>? metadata,
+    String? actionId,
+    String? actionType,
   }) {
     return NotificationModel(
       id: id ?? this.id,
@@ -102,6 +108,8 @@ class NotificationModel {
       type: type ?? this.type,
       actionUrl: actionUrl ?? this.actionUrl,
       metadata: metadata ?? this.metadata,
+      actionId: actionId ?? this.actionId,
+      actionType: actionType ?? this.actionType,
     );
   }
 

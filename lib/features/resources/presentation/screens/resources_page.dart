@@ -8,6 +8,7 @@ import 'package:kc_connect/core/widgets/common/app_fab.dart';
 import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/resources/controllers/resources_controller.dart';
 import 'package:kc_connect/features/resources/presentation/widgets/upload_resource_modal.dart';
 
@@ -58,10 +59,14 @@ class _ResourcesPageState extends State<ResourcesPage>
         Positioned(
           right: 20,
           bottom: 35,
-          child: AppFAB(
-            onPressed: () => showUploadResourceModal(context),
-            tooltip: 'Upload Resource',
-          ),
+          child: Obx(() {
+            final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+            if (role != 'staff' && role != 'alumni' && role != 'admin') return const SizedBox.shrink();
+            return AppFAB(
+              onPressed: () => showUploadResourceModal(context),
+              tooltip: 'Upload Resource',
+            );
+          }),
         ),
       ],
     );

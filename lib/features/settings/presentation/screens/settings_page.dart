@@ -546,24 +546,23 @@ class _SettingsPageState extends State<SettingsPage> {
           'Select Language',
           style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
         ),
-        content: RadioGroup<String>(
-          groupValue: _selectedLanguage,
-          onChanged: (value) {
-            if (value != null) {
-              setState(() => _selectedLanguage = value);
-              _saveLanguage(value);
-              Navigator.pop(context);
-            }
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ['English', 'French', 'Pidgin'].map((lang) {
-              return RadioListTile<String>(
-                title: Text(lang),
-                value: lang,
-              );
-            }).toList(),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: ['English', 'French', 'Pidgin'].map((lang) {
+            return RadioListTile<String>(
+              title: Text(lang),
+              value: lang,
+              groupValue: _selectedLanguage,
+              activeColor: AppColors.blue,
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedLanguage = value);
+                  _saveLanguage(value);
+                  Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
         ),
       ),
     );

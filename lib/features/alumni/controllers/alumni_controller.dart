@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
 import 'package:kc_connect/core/widgets/common/snackbar.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AlumniController extends GetxController {
@@ -52,7 +54,12 @@ class AlumniController extends GetxController {
   Future<void> _fetchAlumni() async {
     final response = await Supabase.instance.client
         .from('users')
-        .select()
+        .select(
+          'id, full_name, profile_image_url, graduation_year, '
+          'current_position, school, bio, career, vision, '
+          'available_for_mentorship, email, max_mentees, '
+          'expertise, total_mentorship_given, total_likes',
+        )
         .eq('role', 'alumni')
         .eq('status', 'active')
         .order('full_name');
@@ -76,7 +83,7 @@ class AlumniController extends GetxController {
       _likedAlumni.value =
           (response as List).map((item) => item['alumni_id'] as String).toList();
     } catch (e) {
-      print('Error loading liked alumni: $e');
+      debugPrint('Error loading liked alumni: $e');
     }
   }
 
@@ -94,7 +101,7 @@ class AlumniController extends GetxController {
       _mentorshipRequests.value =
           (response as List).map((r) => r['mentor_id'] as String).toList();
     } catch (e) {
-      print('Error loading mentorship requests: $e');
+      debugPrint('Error loading mentorship requests: $e');
     }
   }
 
@@ -116,7 +123,7 @@ class AlumniController extends GetxController {
       }
       _alumniLikeCounts.value = counts;
     } catch (e) {
-      print('Error loading like counts: $e');
+      debugPrint('Error loading like counts: $e');
     }
   }
 
@@ -265,11 +272,47 @@ class AlumniController extends GetxController {
         return;
       }
 
-      await Supabase.instance.client.from('mentorship_requests').insert({
-        'student_id': userId,
-        'mentor_id': alumniId,
-        'status': 'pending',
-        'requested_at': DateTime.now().toIso8601String(),
+      // Capacity check: count active (accepted) mentorships for this alumni
+      final activeList = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('id')
+          .eq('mentor_id', alumniId)
+          .eq('status', 'accepted');
+
+      if ((activeList as List).length >= alumni.maxMentees) {
+        AppSnackbar.warning(
+          'Mentor Full',
+          '${alumni.name} has reached their maximum number of mentees.',
+        );
+        return;
+      }
+
+      // Insert the request and get its ID back
+      final response = await Supabase.instance.client
+          .from('mentorship_requests')
+          .insert({
+            'student_id': userId,
+            'mentor_id': alumniId,
+            'status': 'pending',
+            'requested_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
+
+      final requestId = response['id'] as String;
+
+      // Notify the alumni
+      final studentName =
+          Get.find<AuthController>().currentUser?['full_name'] ?? 'A student';
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': alumniId,
+        'title': 'New Mentorship Request',
+        'message': '$studentName would like you to be their mentor.',
+        'type': 'mentorship',
+        'action_type': 'mentorship_request',
+        'action_id': requestId,
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
       });
 
       _mentorshipRequests.add(alumniId);
@@ -355,15 +398,14 @@ class AlumniController extends GetxController {
       classInfo: classYear != null ? 'Class of $classYear' : 'Alumni',
       imageUrl: row['profile_image_url'],
       bio: row['bio'] ?? '',
-      career: [row['current_position'], row['company']]
-          .where((v) => v != null && v.toString().isNotEmpty)
-          .join(' at '),
-      vision: row['bio'] ?? '',
+      career: row['career'] ?? '',
+      vision: row['vision'] ?? '',
       isAvailableForMentorship: row['available_for_mentorship'] ?? false,
       email: row['email'],
       linkedin: row['linkedin_url'],
       expertise: expertise,
       menteeCount: row['total_mentorship_given'] ?? 0,
+      maxMentees: row['max_mentees'] ?? 3,
     );
   }
 }

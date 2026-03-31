@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -74,11 +75,11 @@ class AdminOTPController extends GetxController {
       _isLoading.value = false;
     } catch (e) {
       _isLoading.value = false;
-      print('Error loading OTP requests: $e');
+      debugPrint('Error loading OTP requests: $e');
     }
   }
 
-  // Approve: create the user via Edge Function (requires server-side auth admin)
+  // Approve: send OTP to user's email + mark admin_approved = true
   Future<void> approveOTP(String otpId, String userName) async {
     try {
       await Supabase.instance.client.functions.invoke(
@@ -90,14 +91,14 @@ class AdminOTPController extends GetxController {
 
       AppSnackbar.success(
         'Approved',
-        'Signup approved for $userName. They can now log in.',
+        'OTP has been sent to $userName\'s email.',
       );
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to approve signup');
     }
   }
 
-  // Reject: deactivate the pending signup record directly
+  // Reject: send rejection email with reason + deactivate record
   Future<void> rejectOTP(String otpId, String userName, String reason) async {
     try {
       if (reason.trim().isEmpty) {
@@ -105,14 +106,30 @@ class AdminOTPController extends GetxController {
         return;
       }
 
+      // Find the request to get the email
+      final request = _pendingOTPs.firstWhereOrNull((o) => o.id == otpId);
+
       await Supabase.instance.client
           .from('pending_signups')
           .update({'is_active': false})
           .eq('id', otpId);
 
+      // Send rejection email to user
+      if (request != null) {
+        await Supabase.instance.client.functions.invoke(
+          'send-otp-email',
+          body: {
+            'email': request.userEmail,
+            'name': request.userName,
+            'type': 'rejection',
+            'reason': reason,
+          },
+        );
+      }
+
       _pendingOTPs.removeWhere((otp) => otp.id == otpId);
 
-      AppSnackbar.success('Rejected', 'Signup rejected for $userName');
+      AppSnackbar.success('Rejected', 'Rejection sent to $userName');
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to reject signup');
     }

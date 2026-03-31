@@ -41,6 +41,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Wait for animation to finish, then check auth
     Future.delayed(const Duration(milliseconds: 3200), () {
+      if (!mounted) return;
       _checkAuthStatus();
     });
   }

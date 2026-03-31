@@ -76,6 +76,8 @@ class AlumniDetailPage extends StatelessWidget {
               return const SizedBox.shrink();
             }),
 
+            const SizedBox(height: 16),
+            _buildExpertiseChips(),
             const SizedBox(height: 24),
             _buildBioSection(),
             const SizedBox(height: 20),
@@ -184,6 +186,57 @@ class AlumniDetailPage extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _buildExpertiseChips() {
+    final List<String> expertise =
+        ((alumniData['expertise'] as List?)?.cast<String>() ?? []);
+    if (expertise.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            'Mentorship Areas',
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.grey[500],
+              fontSize: 11,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: expertise
+                .map(
+                  (area) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppColors.blue.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      area,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.blue,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
     );
   }
 

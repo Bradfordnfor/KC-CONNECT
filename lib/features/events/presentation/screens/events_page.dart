@@ -10,9 +10,11 @@ import 'package:kc_connect/core/widgets/common/app_fab.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/events/controllers/events_controller.dart';
 import 'package:kc_connect/features/events/presentation/widgets/add_event_modal.dart';
 import 'package:kc_connect/features/events/presentation/widgets/event_payment_bottom_sheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EventsPage extends StatelessWidget {
   EventsPage({super.key});
@@ -64,10 +66,14 @@ class EventsPage extends StatelessWidget {
         Positioned(
           right: 20,
           bottom: 35,
-          child: AppFAB(
-            onPressed: () => showAddEventModal(context),
-            tooltip: 'Add Event',
-          ),
+          child: Obx(() {
+            final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+            if (role != 'staff' && role != 'alumni' && role != 'admin') return const SizedBox.shrink();
+            return AppFAB(
+              onPressed: () => showAddEventModal(context),
+              tooltip: 'Add Event',
+            );
+          }),
         ),
       ],
     );
@@ -150,7 +156,7 @@ class EventsPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -206,7 +212,7 @@ class EventsPage extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -301,12 +307,28 @@ class EventsPage extends StatelessWidget {
             title: event.title,
             subtitle: event.subtitle,
             meta: event.meta,
-            tag: event.type,
-            tagColor: AppColors.blue,
+            tag: event.isOnline ? 'Online' : event.type,
+            tagColor: event.isOnline ? AppColors.success : AppColors.blue,
             onTap: () => _showEventDetails(Get.context!, event),
             rightWidget: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (isRegistered && event.isOnline)
+                  SizedBox(
+                    width: 120,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _launchMeetingLink(event.meetingLink!),
+                      icon: const Icon(Icons.videocam, size: 14, color: AppColors.white),
+                      label: const Text('Join Event',
+                          style: TextStyle(color: AppColors.white, fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                if (isRegistered && event.isOnline) const SizedBox(height: 6),
                 SizedBox(
                   width: 120,
                   child: PrimaryButton(
@@ -332,7 +354,7 @@ class EventsPage extends StatelessWidget {
                     height: 32,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
                   event.spotsLeft,
                   style: AppTextStyles.caption.copyWith(
@@ -395,6 +417,10 @@ class EventsPage extends StatelessWidget {
               const SizedBox(height: 12),
               _buildDetailRow(Icons.location_on, 'Location', event.location!),
             ],
+            if (event.isOnline) ...[
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.videocam, 'Format', 'Online Event'),
+            ],
             const SizedBox(height: 16),
             Text(
               'Description',
@@ -414,31 +440,52 @@ class EventsPage extends StatelessWidget {
             const SizedBox(height: 24),
             Obx(() {
               final isRegistered = controller.isRegistered(event.id);
-              return PrimaryButton(
-                label: isRegistered ? 'Unregister' : 'Register Now',
-                expanded: true,
-                height: 48,
-                onPressed: () {
-                  if (isRegistered) {
-                    controller.unregisterFromEvent(event.id);
-                    Navigator.pop(context);
-                  } else if (event.isPaid) {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      isScrollControlled: true,
-                      builder: (context) => EventPaymentBottomSheet(
-                        eventId: event.id,
-                        eventName: event.title,
-                        price: event.registrationFee.toStringAsFixed(0),
+              return Column(
+                children: [
+                  if (isRegistered && event.isOnline) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _launchMeetingLink(event.meetingLink!),
+                        icon: const Icon(Icons.videocam, color: AppColors.white),
+                        label: const Text('Join Event',
+                            style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
-                    );
-                  } else {
-                    controller.registerForEvent(event.id);
-                    Navigator.pop(context);
-                  }
-                },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  PrimaryButton(
+                    label: isRegistered ? 'Unregister' : 'Register Now',
+                    expanded: true,
+                    height: 48,
+                    onPressed: () {
+                      if (isRegistered) {
+                        controller.unregisterFromEvent(event.id);
+                        Navigator.pop(context);
+                      } else if (event.isPaid) {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (context) => EventPaymentBottomSheet(
+                            eventId: event.id,
+                            eventName: event.title,
+                            price: event.registrationFee.toStringAsFixed(0),
+                          ),
+                        );
+                      } else {
+                        controller.registerForEvent(event.id);
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                ],
               );
             }),
           ],
@@ -470,6 +517,19 @@ class EventsPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _launchMeetingLink(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      Get.snackbar('Error', 'Could not open meeting link',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.white,
+          snackPosition: SnackPosition.BOTTOM);
+    }
   }
 
   void _showFilterBottomSheet(BuildContext context) {

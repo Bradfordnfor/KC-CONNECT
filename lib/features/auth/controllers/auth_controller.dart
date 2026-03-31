@@ -45,8 +45,15 @@ class AuthController extends GetxController {
         }
 
         await _loadUserProfile(session.user.id);
-        if (Get.currentRoute != AppRoutes.main) {
-          Get.offAllNamed(AppRoutes.main);
+        final role = _currentUser.value?['role'] as String? ?? '';
+        if (role == 'admin') {
+          if (Get.currentRoute != AppRoutes.admin) {
+            Get.offAllNamed(AppRoutes.admin);
+          }
+        } else {
+          if (Get.currentRoute != AppRoutes.main) {
+            Get.offAllNamed(AppRoutes.main);
+          }
         }
       } else if (event.event == AuthChangeEvent.signedOut) {
         _isAuthenticated.value = false;
@@ -84,7 +91,7 @@ class AuthController extends GetxController {
       final response = await Supabase.instance.client
           .from('users')
           .select(
-            'id, email, full_name, phone_number, profile_image_url, role, status, institution, school, level, class_year, graduation_year, current_position, company, bio, expertise, available_for_mentorship, mentorship_areas, linkedin_url, twitter_url, website_url, total_likes, total_resources_uploaded, total_events_created, total_mentorship_given, subscription_status, subscription_start_date, subscription_end_date, subscription_auto_renew, notification_preferences, language_preference, theme_preference, created_at, updated_at, last_login_at, login_count',
+            'id, email, full_name, phone_number, profile_image_url, role, status, institution, school, level, class_year, graduation_year, current_position, company, bio, career, vision, expertise, available_for_mentorship, max_mentees, mentorship_areas, linkedin_url, twitter_url, website_url, total_likes, total_resources_uploaded, total_events_created, total_mentorship_given, subscription_status, subscription_start_date, subscription_end_date, subscription_auto_renew, notification_preferences, language_preference, theme_preference, created_at, updated_at, last_login_at, login_count',
           )
           .eq('id', userId)
           .single();
@@ -150,13 +157,18 @@ class AuthController extends GetxController {
           'role': role,
           'otp': otp,
           'password_hash': passwordHash,
+          'purpose': role.toLowerCase() == 'admin' ? 'admin_signup' : 'staff_signup',
+          'is_active': true,
+          'created_at': DateTime.now().toIso8601String(),
           'expires_at': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
         });
-        await _sendOTPEmail(email, fullName, otp);
+        // Notify admins — OTP email is sent to user only AFTER admin approves
+        await _notifyAdminOfNewSignup(email, fullName, role);
         _isLoading.value = false;
         return {
           'success': true,
           'requiresOTP': true,
+          'awaitingApproval': true,
           'email': email,
           'role': role,
         };
@@ -205,27 +217,56 @@ class AuthController extends GetxController {
     }
   }
 
-  // Verify OTP
-  Future<bool> verifyOTP({required String email, required String otp}) async {
+  // Verify OTP — admin must have approved before this will succeed
+  Future<Map<String, dynamic>> verifyOTP({required String email, required String otp}) async {
     try {
       _isLoading.value = true;
-      await Supabase.instance.client
+
+      // Check OTP is correct, active, and admin has approved it
+      final record = await Supabase.instance.client
           .from('pending_signups')
           .select()
           .eq('email', email)
           .eq('otp', otp)
-          .single();
-      await Supabase.instance.client
-          .from('pending_signups')
-          .update({'status': 'pending_approval'})
-          .eq('email', email);
-      await _notifyAdminOfNewSignup(email);
+          .eq('is_active', true)
+          .maybeSingle();
+
+      if (record == null) {
+        _isLoading.value = false;
+        return {'success': false, 'error': 'Invalid OTP. Please check and try again.'};
+      }
+
+      final adminApproved = record['admin_approved'] as bool? ?? false;
+      if (!adminApproved) {
+        _isLoading.value = false;
+        return {'success': false, 'error': 'Your request is still pending admin approval. You will receive an email with your OTP once approved.'};
+      }
+
+      // Call complete-signup edge function — creates auth user + returns sign-in token
+      final result = await Supabase.instance.client.functions.invoke(
+        'complete-signup',
+        body: {'email': email, 'otp': otp},
+      );
+
+      final data = result.data as Map<String, dynamic>?;
+      if (data == null || data['token'] == null) {
+        _isLoading.value = false;
+        return {'success': false, 'error': 'Account setup failed. Please contact support.'};
+      }
+
+      // Sign in using the magic link token returned by the edge function
+      await Supabase.instance.client.auth.verifyOTP(
+        email: email,
+        token: data['token'] as String,
+        type: OtpType.magiclink,
+      );
+
       _isLoading.value = false;
-      return true;
+      return {'success': true};
     } catch (e) {
       _isLoading.value = false;
       debugPrint('OTP verification error: $e');
-      return false;
+      return {'success': false, 'error': 'Verification failed. Please try again.'};
     }
   }
 
@@ -325,9 +366,8 @@ class AuthController extends GetxController {
 
   /// Inserts a system notification for every admin user so they can see
   /// and act on the new staff/admin signup request.
-  Future<void> _notifyAdminOfNewSignup(String applicantEmail) async {
+  Future<void> _notifyAdminOfNewSignup(String applicantEmail, String applicantName, String role) async {
     try {
-      // Fetch all admin user IDs
       final admins = await Supabase.instance.client
           .from('users')
           .select('id')
@@ -337,8 +377,8 @@ class AuthController extends GetxController {
 
       final notifications = (admins as List).map((admin) => {
         'user_id': admin['id'],
-        'title': 'New Signup Request',
-        'message': 'A new staff/admin signup is pending approval for $applicantEmail.',
+        'title': 'New ${role.toLowerCase() == 'admin' ? 'Admin' : 'Staff'} Signup Request',
+        'message': '$applicantName ($applicantEmail) has requested to join as ${role.toLowerCase()}. Review in OTP Approvals.',
         'type': 'system',
         'priority': 'high',
         'is_read': false,

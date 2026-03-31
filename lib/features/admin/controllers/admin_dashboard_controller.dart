@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -80,7 +81,7 @@ class AdminDashboardController extends GetxController {
       _isLoading.value = false;
     } catch (e) {
       _isLoading.value = false;
-      print('Error loading dashboard data: $e');
+      debugPrint('Error loading dashboard data: $e');
     }
   }
 

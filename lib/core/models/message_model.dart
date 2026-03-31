@@ -11,6 +11,10 @@ class MessageModel {
   final String chatRoom; // 'grade10', 'grade12', 'ai'
   final bool isAI;
   final MessageStatus status;
+  final String messageType; // 'text', 'image', 'file'
+  final String? fileUrl;
+  final String? fileName;
+  final int? fileSize;
 
   MessageModel({
     required this.id,
@@ -23,7 +27,21 @@ class MessageModel {
     required this.chatRoom,
     this.isAI = false,
     this.status = MessageStatus.sent,
+    this.messageType = 'text',
+    this.fileUrl,
+    this.fileName,
+    this.fileSize,
   });
+
+  bool get isImage => messageType == 'image';
+  bool get isFile => messageType == 'file';
+
+  String get formattedFileSize {
+    if (fileSize == null) return '';
+    if (fileSize! < 1024) return '${fileSize}B';
+    if (fileSize! < 1024 * 1024) return '${(fileSize! / 1024).toStringAsFixed(1)}KB';
+    return '${(fileSize! / (1024 * 1024)).toStringAsFixed(1)}MB';
+  }
 
   // Getters for display
   String get displaySenderName => senderName;
@@ -88,6 +106,10 @@ class MessageModel {
     String? chatRoom,
     bool? isAI,
     MessageStatus? status,
+    String? messageType,
+    String? fileUrl,
+    String? fileName,
+    int? fileSize,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -100,6 +122,10 @@ class MessageModel {
       chatRoom: chatRoom ?? this.chatRoom,
       isAI: isAI ?? this.isAI,
       status: status ?? this.status,
+      messageType: messageType ?? this.messageType,
+      fileUrl: fileUrl ?? this.fileUrl,
+      fileName: fileName ?? this.fileName,
+      fileSize: fileSize ?? this.fileSize,
     );
   }
 

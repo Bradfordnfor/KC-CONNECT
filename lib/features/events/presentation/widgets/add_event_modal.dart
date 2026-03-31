@@ -19,6 +19,7 @@ class _AddEventModalState extends State<AddEventModal> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _meetingLinkController = TextEditingController();
 
   String _eventType = 'workshop';
   DateTime? _selectedDate;
@@ -119,9 +120,18 @@ class _AddEventModalState extends State<AddEventModal> {
 
             AppTextField(
               label: 'Location',
-              hint: 'Enter event location',
+              hint: 'Enter event location (or "Online")',
               controller: _locationController,
               validator: (value) => Validators.required(value, 'Location'),
+            ),
+            const SizedBox(height: 16),
+
+            AppTextField(
+              label: 'Meeting Link (optional)',
+              hint: 'https://zoom.us/j/... or meet.google.com/...',
+              controller: _meetingLinkController,
+              keyboardType: TextInputType.url,
+              prefixIcon: const Icon(Icons.videocam_outlined, color: AppColors.blue),
             ),
             const SizedBox(height: 8),
 
@@ -251,6 +261,8 @@ class _AddEventModalState extends State<AddEventModal> {
         'requires_registration': true,
         'status': 'upcoming',
         'visibility': 'public',
+        if (_meetingLinkController.text.trim().isNotEmpty)
+          'meeting_link': _meetingLinkController.text.trim(),
       });
 
       if (mounted) Navigator.pop(context);
@@ -267,6 +279,7 @@ class _AddEventModalState extends State<AddEventModal> {
     _titleController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _meetingLinkController.dispose();
     super.dispose();
   }
 }

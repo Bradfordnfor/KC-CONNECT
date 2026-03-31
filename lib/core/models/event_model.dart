@@ -11,6 +11,7 @@ class EventModel {
   final String? host;
   final String? location;
   final String? imageUrl;
+  final String? meetingLink;
   final int? capacity;
   final int registeredCount;
   final bool isRegistered;
@@ -27,6 +28,7 @@ class EventModel {
     this.host,
     this.location,
     this.imageUrl,
+    this.meetingLink,
     this.capacity,
     this.registeredCount = 0,
     this.isRegistered = false,
@@ -35,6 +37,7 @@ class EventModel {
   });
 
   bool get isPaid => registrationFee > 0;
+  bool get isOnline => meetingLink != null && meetingLink!.isNotEmpty;
 
   // Getters for display
   String get displayDate => _formatDate(date);
@@ -108,6 +111,7 @@ class EventModel {
     String? host,
     String? location,
     String? imageUrl,
+    String? meetingLink,
     int? capacity,
     int? registeredCount,
     bool? isRegistered,
@@ -124,6 +128,7 @@ class EventModel {
       host: host ?? this.host,
       location: location ?? this.location,
       imageUrl: imageUrl ?? this.imageUrl,
+      meetingLink: meetingLink ?? this.meetingLink,
       capacity: capacity ?? this.capacity,
       registeredCount: registeredCount ?? this.registeredCount,
       isRegistered: isRegistered ?? this.isRegistered,

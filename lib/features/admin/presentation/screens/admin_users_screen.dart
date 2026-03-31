@@ -1,145 +1,230 @@
-// lib/views/admin/pages/admin_users_page.dart
+// lib/features/admin/presentation/screens/admin_users_screen.dart
 import 'package:flutter/material.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class AdminUsersPage extends StatelessWidget {
-  const AdminUsersPage({Key? key}) : super(key: key);
+class AdminUsersPage extends StatefulWidget {
+  const AdminUsersPage({super.key});
+
+  @override
+  State<AdminUsersPage> createState() => _AdminUsersPageState();
+}
+
+class _AdminUsersPageState extends State<AdminUsersPage> {
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _isLoading = true;
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUsers() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('id, full_name, email, role, status, created_at')
+          .neq('status', 'inactive')
+          .order('created_at', ascending: false);
+
+      setState(() {
+        _users = List<Map<String, dynamic>>.from(response as List);
+        _filtered = _users;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+      setState(() => _isLoading = false);
+      AppSnackbar.error('Error', 'Failed to load users.');
+    }
+  }
+
+  void _onSearch(String query) {
+    final q = query.toLowerCase();
+    setState(() {
+      _filtered = _users.where((u) {
+        final name = (u['full_name'] ?? '').toString().toLowerCase();
+        final email = (u['email'] ?? '').toString().toLowerCase();
+        final role = (u['role'] ?? '').toString().toLowerCase();
+        return name.contains(q) || email.contains(q) || role.contains(q);
+      }).toList();
+    });
+  }
+
+  Future<void> _suspendUser(Map<String, dynamic> user) async {
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({'status': 'suspended', 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', user['id']);
+
+      setState(() {
+        _users.removeWhere((u) => u['id'] == user['id']);
+        _filtered.removeWhere((u) => u['id'] == user['id']);
+      });
+      AppSnackbar.success('Done', '${user['full_name']} has been suspended.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to suspend user.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.backgroundColor,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'All Users',
-              style: AppTextStyles.subHeading.copyWith(
-                color: AppColors.blue,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildUsersList(),
-          ],
+      child: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.blue))
+                : _filtered.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        color: AppColors.blue,
+                        onRefresh: _loadUsers,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) =>
+                              _buildUserCard(_filtered[index]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      color: AppColors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearch,
+        decoration: InputDecoration(
+          hintText: 'Search by name, email or role...',
+          prefixIcon:
+              const Icon(Icons.search, color: AppColors.blue, size: 20),
+          filled: true,
+          fillColor: AppColors.backgroundColor,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          isDense: true,
         ),
       ),
     );
   }
 
-  Widget _buildUsersList() {
-    final users = [
-      {'name': 'John Doe', 'email': 'john@example.com', 'role': 'Student'},
-      {'name': 'Jane Smith', 'email': 'jane@example.com', 'role': 'Alumni'},
-      {'name': 'Mike Johnson', 'email': 'mike@example.com', 'role': 'Staff'},
-      {'name': 'Sarah Williams', 'email': 'sarah@example.com', 'role': 'Admin'},
-    ];
+  Widget _buildUserCard(Map<String, dynamic> user) {
+    final role = (user['role'] ?? 'student') as String;
+    final name = (user['full_name'] ?? 'Unknown') as String;
+    final email = (user['email'] ?? '') as String;
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: users.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final user = users[index];
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: AppColors.blue.withValues(alpha: 0.1),
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.blue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppColors.blue.withOpacity(0.1),
-                child: Text(
-                  user['name']![0],
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: AppTextStyles.body
+                      .copyWith(fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user['name']!,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      user['email']!,
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                Text(
+                  email,
+                  style: AppTextStyles.caption
+                      .copyWith(color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getRoleColor(user['role']!).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  user['role']!,
-                  style: AppTextStyles.caption.copyWith(
-                    color: _getRoleColor(user['role']!),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: AppColors.error,
-                  size: 20,
-                ),
-                onPressed: () => _showDeleteDialog(context, user['name']!),
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      },
+          const SizedBox(width: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _roleColor(role).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              role[0].toUpperCase() + role.substring(1),
+              style: AppTextStyles.caption.copyWith(
+                color: _roleColor(role),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.block, color: AppColors.error, size: 20),
+            tooltip: 'Suspend user',
+            onPressed: () => _confirmSuspend(user),
+          ),
+        ],
+      ),
     );
   }
 
-  void _showDeleteDialog(BuildContext context, String userName) {
+  void _confirmSuspend(Map<String, dynamic> user) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (ctx) => Dialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: AppColors.error,
-                size: 48,
-              ),
+              const Icon(Icons.warning_amber_rounded,
+                  color: AppColors.error, size: 48),
               const SizedBox(height: 16),
-              Text(
-                'Delete User',
-                style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
-              ),
+              Text('Suspend User',
+                  style: AppTextStyles.subHeading
+                      .copyWith(color: AppColors.blue)),
               const SizedBox(height: 12),
               Text(
-                'Are you sure you want to delete $userName? This action cannot be undone.',
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                'Are you sure you want to suspend ${user['full_name']}? They will no longer be able to log in.',
+                style: AppTextStyles.body
+                    .copyWith(color: AppColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -147,42 +232,36 @@ class AdminUsersPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(ctx),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.blue),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                            borderRadius: BorderRadius.circular(8)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Text(
-                        'Cancel',
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.blue,
-                        ),
-                      ),
+                      child: Text('Cancel',
+                          style: AppTextStyles.body
+                              .copyWith(color: AppColors.blue)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.pop(context);
-                        _deleteUser(context, userName);
+                        Navigator.pop(ctx);
+                        _suspendUser(user);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.error,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                            borderRadius: BorderRadius.circular(8)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Text(
-                        'Delete',
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.white,
-                        ),
-                      ),
+                      child: Text('Suspend',
+                          style: AppTextStyles.body
+                              .copyWith(color: AppColors.white)),
                     ),
                   ),
                 ],
@@ -194,22 +273,23 @@ class AdminUsersPage extends StatelessWidget {
     );
   }
 
-  void _deleteUser(BuildContext context, String userName) {
-    // TODO: Implement actual delete with Supabase
-    // await Supabase.instance.client.from('users').delete().eq('name', userName);
-
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$userName has been deleted'),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people_outline,
+              size: 64, color: AppColors.blue.withValues(alpha: 0.4)),
+          const SizedBox(height: 16),
+          Text('No users found',
+              style:
+                  AppTextStyles.subHeading.copyWith(color: AppColors.blue)),
+        ],
       ),
     );
   }
 
-  Color _getRoleColor(String role) {
+  Color _roleColor(String role) {
     switch (role.toLowerCase()) {
       case 'admin':
         return AppColors.error;

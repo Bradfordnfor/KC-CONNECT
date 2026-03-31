@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/config/app_constants.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 
@@ -71,8 +72,12 @@ class LoginController extends GetxController {
       );
 
       if (success) {
-        // Navigate to main app
-        Get.offAllNamed('/main');
+        final role = _authController.currentUser?['role'] as String? ?? '';
+        if (role == 'admin') {
+          Get.offAllNamed(AppRoutes.admin);
+        } else {
+          Get.offAllNamed(AppRoutes.main);
+        }
         _showSuccess('Welcome back!');
       } else {
         _showError('Invalid email or password');

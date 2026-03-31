@@ -7,13 +7,14 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/bottom_nav_bar.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
-import 'package:kc_connect/features/admin/presentation/screens/admin_navigation_screen.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/home/presentation/screens/home_page.dart';
 import 'package:kc_connect/features/resources/presentation/screens/resources_page.dart';
 import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
 import 'package:kc_connect/features/events/presentation/screens/events_page.dart';
 import 'package:kc_connect/features/kstore/presentation/screens/kstore_page.dart';
+import 'package:kc_connect/features/alumni/presentation/widgets/alumni_profile_setup_sheet.dart';
+import 'package:kc_connect/features/notifications/controllers/notifications_controller.dart';
 import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -55,6 +56,7 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     navController = Get.put(NavigationController());
+    Get.put(NotificationsController());
     _pages = [
       const HomePage(),
       const ResourcesPage(),
@@ -62,7 +64,32 @@ class _MainNavigationState extends State<MainNavigation> {
       EventsPage(),
       KstorePage(),
     ];
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSubscription());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSubscription();
+      _scheduleAlumniProfileCheck();
+    });
+  }
+
+  void _scheduleAlumniProfileCheck() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (!mounted) return;
+      final user = Get.find<AuthController>().currentUser;
+      if (user == null) return;
+      if ((user['role'] as String? ?? '') != 'alumni') return;
+
+      final bio = user['bio'] as String? ?? '';
+      final vision = user['vision'] as String? ?? '';
+      if (bio.isNotEmpty && vision.isNotEmpty) return; // already complete
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (_) => const AlumniProfileSetupSheet(),
+      );
+    });
   }
 
   void _checkSubscription() {
@@ -99,6 +126,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
         if (isLargeScreen) {
           return Scaffold(
+            resizeToAvoidBottomInset: false,
             appBar: _buildAppBar(context, showMenuButton: false),
             body: Row(
               children: [
@@ -122,6 +150,7 @@ class _MainNavigationState extends State<MainNavigation> {
           );
         } else {
           return Scaffold(
+            resizeToAvoidBottomInset: false,
             appBar: _buildAppBar(context, showMenuButton: true),
             endDrawer: _buildDrawer(context),
             body: Obx(
@@ -170,10 +199,44 @@ class _MainNavigationState extends State<MainNavigation> {
       }),
       centerTitle: true,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: AppColors.blue),
-          onPressed: () => Get.toNamed(AppRoutes.news),
-        ),
+        Obx(() {
+          final unread = Get.find<NotificationsController>().unreadCount;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.blue,
+                ),
+                onPressed: () => Get.toNamed(AppRoutes.news),
+              ),
+              if (unread > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: AppColors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      unread > 99 ? '99+' : unread.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }),
         if (showMenuButton)
           Builder(
             builder: (context) => IconButton(
@@ -261,15 +324,19 @@ class _MainNavigationState extends State<MainNavigation> {
                         Get.toNamed(AppRoutes.profile);
                       },
                     ),
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.diversity_3,
-                      title: 'Alumni',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Get.toNamed(AppRoutes.alumni);
-                      },
-                    ),
+                    Obx(() {
+                      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+                      if (role != 'student') return const SizedBox.shrink();
+                      return _buildDrawerItem(
+                        context,
+                        icon: Icons.diversity_3,
+                        title: 'Alumni',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Get.toNamed(AppRoutes.alumni);
+                        },
+                      );
+                    }),
                     _buildDrawerItem(
                       context,
                       icon: Icons.settings,
@@ -300,19 +367,15 @@ class _MainNavigationState extends State<MainNavigation> {
                       },
                     ),
                     Obx(() {
-                      final authController = Get.find<AuthController>();
-                      final role =
-                          authController.currentUser?['role'] ?? '';
-                      if (role != 'admin' && role != 'staff') {
-                        return const SizedBox.shrink();
-                      }
+                      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+                      if (role != 'admin') return const SizedBox.shrink();
                       return _buildDrawerItem(
                         context,
                         icon: Icons.admin_panel_settings,
                         title: 'Admin Panel',
                         onTap: () {
                           Navigator.pop(context);
-                          Get.to(() => AdminMainPage());
+                          Get.offAllNamed(AppRoutes.admin);
                         },
                       );
                     }),

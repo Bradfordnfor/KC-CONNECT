@@ -15,6 +15,7 @@ class AlumniModel {
   final String? linkedin;
   final List<String> expertise;
   final int menteeCount;
+  final int maxMentees;
 
   AlumniModel({
     required this.id,
@@ -31,6 +32,7 @@ class AlumniModel {
     this.linkedin,
     this.expertise = const [],
     this.menteeCount = 0,
+    this.maxMentees = 3,
   });
 
   // Getters for display
@@ -76,6 +78,7 @@ class AlumniModel {
     String? linkedin,
     List<String>? expertise,
     int? menteeCount,
+    int? maxMentees,
   }) {
     return AlumniModel(
       id: id ?? this.id,
@@ -93,6 +96,7 @@ class AlumniModel {
       linkedin: linkedin ?? this.linkedin,
       expertise: expertise ?? this.expertise,
       menteeCount: menteeCount ?? this.menteeCount,
+      maxMentees: maxMentees ?? this.maxMentees,
     );
   }
 
@@ -108,6 +112,7 @@ class AlumniModel {
       'bio': bio,
       'career': career,
       'vision': vision,
+      'expertise': expertise,
     };
   }
 

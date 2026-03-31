@@ -11,6 +11,9 @@ class AppRoutes {
   /// Main navigation wrapper - Contains bottom nav and main pages
   static const String main = '/main';
 
+  /// Admin navigation wrapper - Admin dashboard
+  static const String admin = '/admin';
+
   /// Home page - Main dashboard
   static const String home = '/';
 

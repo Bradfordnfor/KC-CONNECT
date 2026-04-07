@@ -83,14 +83,18 @@ class AdminAnalyticsPage extends StatelessWidget {
   }
 
   Widget _buildOverviewGrid(AdminAnalyticsController c) {
-    return GridView.count(
-      crossAxisCount: 2,
+    // mainAxisExtent fixes card height regardless of screen width,
+    // eliminating overflow on narrow devices.
+    return GridView.custom(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.6,
-      children: [
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 118,
+      ),
+      childrenDelegate: SliverChildListDelegate([
         _buildStatCard(
           label: 'Total Users',
           value: c.totalUsers.toString(),
@@ -115,7 +119,7 @@ class AdminAnalyticsPage extends StatelessWidget {
           icon: Icons.payments_outlined,
           color: AppColors.success,
         ),
-      ],
+      ]),
     );
   }
 
@@ -163,6 +167,8 @@ class AdminAnalyticsPage extends StatelessWidget {
               color: AppColors.blue,
               fontSize: 18,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             label,
@@ -170,6 +176,8 @@ class AdminAnalyticsPage extends StatelessWidget {
               color: Colors.grey[500],
               fontSize: 11,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -315,6 +323,8 @@ class AdminAnalyticsPage extends StatelessWidget {
               fontSize: 20,
               color: AppColors.blue,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             label,
@@ -323,6 +333,8 @@ class AdminAnalyticsPage extends StatelessWidget {
               fontSize: 11,
             ),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             sublabel,
@@ -330,6 +342,8 @@ class AdminAnalyticsPage extends StatelessWidget {
               color: Colors.grey[400],
               fontSize: 10,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -390,7 +404,9 @@ class AdminAnalyticsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    isPaid ? Icons.check_circle_outline : Icons.pending_outlined,
+                    isPaid
+                        ? Icons.check_circle_outline
+                        : Icons.pending_outlined,
                     color: isPaid ? AppColors.success : AppColors.warning,
                     size: 18,
                   ),
@@ -403,9 +419,7 @@ class AdminAnalyticsPage extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  date != null
-                      ? '${date.day}/${date.month}/${date.year}'
-                      : '—',
+                  date != null ? '${date.day}/${date.month}/${date.year}' : '—',
                   style: AppTextStyles.caption.copyWith(
                     color: Colors.grey[500],
                     fontSize: 11,
@@ -425,7 +439,9 @@ class AdminAnalyticsPage extends StatelessWidget {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: (isPaid ? AppColors.success : AppColors.warning)
                             .withValues(alpha: 0.12),

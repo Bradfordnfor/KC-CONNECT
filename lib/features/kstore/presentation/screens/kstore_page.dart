@@ -63,78 +63,134 @@ class KstorePage extends StatelessWidget {
       autoPlayDuration: const Duration(seconds: 5),
       showIndicators: true,
       items: [
-        _buildPriceBanner('XAF 5500', 'XAF 3500'),
-        _buildPriceBanner('XAF 7999', 'XAF 5999'),
-        _buildPriceBanner('XAF 4500', 'XAF 2999'),
+        _buildPriceBanner(
+          icon: Icons.checkroom,
+          label: 'KC T-SHIRTS',
+          originalPrice: 'XAF 5,500',
+          salePrice: 'XAF 3,500',
+          badge: 'HOT DEAL',
+        ),
+        _buildPriceBanner(
+          icon: Icons.dry_cleaning,
+          label: 'KC HOODIES',
+          originalPrice: 'XAF 12,000',
+          salePrice: 'XAF 8,500',
+          badge: 'NEW',
+        ),
+        _buildPriceBanner(
+          icon: Icons.menu_book,
+          label: 'TEXTBOOKS',
+          originalPrice: 'XAF 7,000',
+          salePrice: 'XAF 4,999',
+          badge: 'SALE',
+        ),
       ],
     );
   }
 
-  Widget _buildPriceBanner(String price1, String price2) {
+  Widget _buildPriceBanner({
+    required IconData icon,
+    required String label,
+    required String originalPrice,
+    required String salePrice,
+    required String badge,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         gradient: AppColors.gradientColor,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          // Title
-          Text(
-            'KC-TSHIRTS',
-            style: AppTextStyles.subHeading.copyWith(
-              color: AppColors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
+          // Left: icon
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
+          // Middle: label + prices
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Strikethrough original price
+                    Flexible(
+                      child: Text(
+                        originalPrice,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.white.withValues(alpha: 0.65),
+                          fontSize: 12,
+                          decoration: TextDecoration.lineThrough,
+                          decorationColor: AppColors.white.withValues(alpha: 0.65),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Highlighted sale price
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          salePrice,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.blue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-
-          // Price indicators (dots with prices)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildPriceDot(price1),
-              const SizedBox(width: 16),
-              _buildPriceDot(price2),
-              const SizedBox(width: 16),
-              _buildPriceDot(''),
-              const SizedBox(width: 16),
-              _buildPriceDot(''),
-            ],
+          const SizedBox(width: 8),
+          // Right: badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.deepRed,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              badge,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPriceDot(String price) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: price.isEmpty
-                ? AppColors.white.withOpacity(0.5)
-                : AppColors.white,
-            shape: BoxShape.circle,
-          ),
-        ),
-        if (price.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            price,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ],
     );
   }
 

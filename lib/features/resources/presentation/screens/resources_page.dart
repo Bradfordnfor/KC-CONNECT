@@ -1,6 +1,8 @@
 // lib/features/resources/presentation/screens/resources_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/models/resource_model.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/cards/kc_list_card.dart';
@@ -88,7 +90,7 @@ class _ResourcesPageState extends State<ResourcesPage>
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -144,7 +146,7 @@ class _ResourcesPageState extends State<ResourcesPage>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -235,7 +237,7 @@ class _ResourcesPageState extends State<ResourcesPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.blue.withOpacity(0.1),
+        color: AppColors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -299,38 +301,126 @@ class _ResourcesPageState extends State<ResourcesPage>
           itemCount: controller.filteredResources.length,
           itemBuilder: (context, index) {
             final resource = controller.filteredResources[index];
-            final isFavorited = controller.isFavorited(resource.id);
-
-            return KCListCard(
-              icon: Icons.menu_book,
-              title: resource.title,
-              subtitle: resource.subtitle,
-              meta: resource.meta,
-              onTap: () => controller.downloadResource(resource),
-              rightWidget: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      isFavorited ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorited ? AppColors.red : AppColors.blue,
-                      size: 22,
-                    ),
-                    onPressed: () => controller.toggleFavorite(resource.id),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: AppColors.blue,
-                  ),
-                ],
-              ),
-            );
+            return _buildResourceCard(context, resource);
           },
         ),
       );
     });
+  }
+
+  // ─── Swipeable resource card ──────────────────────────────────────────────
+
+  Widget _buildResourceCard(BuildContext context, ResourceModel resource) {
+    final isOwner = resource.uploadedBy == controller.currentUserId;
+
+    return Obx(() {
+      final isFavorited = controller.isFavorited(resource.id);
+      final downloaded = controller.isDownloaded(resource.id);
+      final downloading = controller.isDownloading(resource.id);
+
+      return Slidable(
+        key: ValueKey(resource.id),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: isOwner ? 0.45 : 0.25,
+          children: [
+            if (isOwner)
+              SlidableAction(
+                onPressed: (_) => _showDeleteConfirmation(context, resource),
+                backgroundColor: AppColors.red,
+                foregroundColor: Colors.white,
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+              ),
+            SlidableAction(
+              onPressed: downloading || downloaded
+                  ? null
+                  : (_) => controller.saveForOffline(resource),
+              backgroundColor: downloaded
+                  ? Colors.green
+                  : downloading
+                      ? Colors.grey
+                      : AppColors.blue,
+              foregroundColor: Colors.white,
+              icon: downloaded
+                  ? Icons.check_circle_outline
+                  : downloading
+                      ? Icons.hourglass_top
+                      : Icons.download_outlined,
+              label: downloaded
+                  ? 'Saved'
+                  : downloading
+                      ? 'Saving...'
+                      : 'Download',
+              borderRadius: isOwner
+                  ? const BorderRadius.only(
+                      topRight: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    )
+                  : const BorderRadius.all(Radius.circular(12)),
+            ),
+          ],
+        ),
+        child: KCListCard(
+          icon: Icons.menu_book,
+          title: resource.title,
+          tag: downloaded ? 'Offline' : null,
+          tagColor: Colors.green,
+          subtitle: resource.subtitle,
+          meta: resource.meta,
+          onTap: () => controller.openResource(resource),
+          rightWidget: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(
+                  isFavorited ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorited ? AppColors.red : AppColors.blue,
+                  size: 22,
+                ),
+                onPressed: () => controller.toggleFavorite(resource.id),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: AppColors.blue,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  void _showDeleteConfirmation(BuildContext context, ResourceModel resource) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Resource'),
+        content: Text(
+          'Are you sure you want to delete "${resource.title}"? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.deleteResource(resource);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   // Filter Bottom Sheet

@@ -1,8 +1,15 @@
 // lib/features/resources/controllers/resources_controller.dart
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/resource_model.dart';
+import 'package:kc_connect/core/screens/in_app_image_viewer.dart';
+import 'package:kc_connect/core/screens/in_app_pdf_viewer.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -16,6 +23,8 @@ class ResourcesController extends GetxController {
   final _selectedSubject = 'All'.obs;
   final _showFavoritesOnly = false.obs;
   final _favoriteResources = <String>[].obs;
+  final _downloadedResources = <String, String>{}.obs; // id → local file path
+  final _downloadingResourceIds = <String>[].obs;
 
   final List<String> categories = [
     'Ordinary Level',
@@ -32,12 +41,17 @@ class ResourcesController extends GetxController {
   String get selectedSubject => _selectedSubject.value;
   String get currentCategory => categories[_currentTabIndex.value];
   bool get showFavoritesOnly => _showFavoritesOnly.value;
+  String? get currentUserId => Supabase.instance.client.auth.currentUser?.id;
+
+  bool isDownloaded(String id) => _downloadedResources.containsKey(id);
+  bool isDownloading(String id) => _downloadingResourceIds.contains(id);
 
   @override
   void onInit() {
     super.onInit();
     loadResources();
     loadFavorites();
+    _loadDownloadedResources();
   }
 
   Future<void> loadResources() async {
@@ -62,18 +76,37 @@ class ResourcesController extends GetxController {
 
   Future<void> loadFavorites() async {
     try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) return;
+      final uid = currentUserId;
+      if (uid == null) return;
 
       final response = await Supabase.instance.client
           .from('user_favorites')
           .select('resource_id')
-          .eq('user_id', currentUserId);
+          .eq('user_id', uid);
 
       _favoriteResources.value =
           (response as List).map((item) => item['resource_id'] as String).toList();
     } catch (e) {
       debugPrint('Error loading favorites: $e');
+    }
+  }
+
+  Future<void> _loadDownloadedResources() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString('downloaded_resources');
+      if (json == null) return;
+      final raw = Map<String, String>.from(jsonDecode(json) as Map);
+      // Verify files still exist on disk
+      final valid = <String, String>{};
+      for (final entry in raw.entries) {
+        if (await File(entry.value).exists()) {
+          valid[entry.key] = entry.value;
+        }
+      }
+      _downloadedResources.value = valid;
+    } catch (e) {
+      debugPrint('Load downloaded resources error: $e');
     }
   }
 
@@ -93,27 +126,214 @@ class ResourcesController extends GetxController {
       }
       _applyFilters();
     } catch (e) {
+      debugPrint('Toggle favorite error: $e');
       AppSnackbar.error('Error', 'Failed to update favourite');
     }
   }
 
   Future<void> _addFavorite(String resourceId) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) throw Exception('Not authenticated');
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Not authenticated');
     await Supabase.instance.client
         .from('user_favorites')
-        .insert({'user_id': userId, 'resource_id': resourceId});
+        .insert({'user_id': uid, 'resource_id': resourceId});
   }
 
   Future<void> _removeFavorite(String resourceId) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) throw Exception('Not authenticated');
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Not authenticated');
     await Supabase.instance.client
         .from('user_favorites')
         .delete()
-        .eq('user_id', userId)
+        .eq('user_id', uid)
         .eq('resource_id', resourceId);
   }
+
+  // ─── Open (tap on card) ─────────────────────────────────────────────────────
+
+  Future<void> openResource(ResourceModel resource) async {
+    if (resource.fileUrl == null || resource.fileUrl!.isEmpty) {
+      AppSnackbar.error('Unavailable', 'No file available for this resource');
+      return;
+    }
+
+    final storagePath = _extractStoragePath(resource.fileUrl!);
+    final ext = storagePath.split('.').last.toLowerCase();
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext);
+    final isPdf = ext == 'pdf';
+
+    // 1. Offline copy first
+    if (_downloadedResources.containsKey(resource.id)) {
+      final localPath = _downloadedResources[resource.id]!;
+      final file = File(localPath);
+      if (await file.exists()) {
+        if (isImage) {
+          final bytes = await file.readAsBytes();
+          Get.to(() => InAppImageViewer(bytes: bytes, title: resource.title));
+        } else {
+          Get.to(() => InAppPdfViewer(localPath: localPath, title: resource.title));
+        }
+        return;
+      } else {
+        _downloadedResources.remove(resource.id);
+        _persistDownloadedMap();
+      }
+    }
+
+    // 2. Download bytes directly from private bucket (uses JWT auth, no signed URL needed)
+    try {
+      AppSnackbar.info('Opening', 'Loading ${resource.title}...');
+      final bytes = await Supabase.instance.client.storage
+          .from('resources')
+          .download(storagePath);
+
+      if (isImage) {
+        Get.to(() => InAppImageViewer(bytes: bytes, title: resource.title));
+      } else if (isPdf) {
+        // Write to temp file for PDF viewer
+        final dir = await getTemporaryDirectory();
+        final fileName = storagePath.split('/').last;
+        final tempFile = File('${dir.path}/$fileName');
+        await tempFile.writeAsBytes(bytes);
+        Get.to(() => InAppPdfViewer(localPath: tempFile.path, title: resource.title));
+      } else {
+        // Unsupported type: write to temp and let OS handle it
+        final dir = await getTemporaryDirectory();
+        final fileName = storagePath.split('/').last;
+        final tempFile = File('${dir.path}/$fileName');
+        await tempFile.writeAsBytes(bytes);
+        final uri = Uri.file(tempFile.path);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          AppSnackbar.error('Error', 'Cannot open this file type on this device');
+          return;
+        }
+      }
+
+      _trackDownload(resource);
+    } catch (e) {
+      debugPrint('Open resource error: $e');
+      AppSnackbar.error('Error', 'Failed to open resource');
+    }
+  }
+
+  void _trackDownload(ResourceModel resource) async {
+    try {
+      final uid = currentUserId;
+      if (uid == null) return;
+      await Future.wait([
+        Supabase.instance.client
+            .from('resources')
+            .update({'download_count': resource.downloads + 1})
+            .eq('id', resource.id),
+      ]);
+      final index = _allResources.indexWhere((r) => r.id == resource.id);
+      if (index != -1) {
+        _allResources[index] = resource.copyWith(downloads: resource.downloads + 1);
+      }
+    } catch (e) {
+      debugPrint('Track download error: $e');
+    }
+  }
+
+  // ─── Save for offline ───────────────────────────────────────────────────────
+
+  Future<void> saveForOffline(ResourceModel resource) async {
+    if (resource.fileUrl == null || resource.fileUrl!.isEmpty) {
+      AppSnackbar.error('Unavailable', 'No file to download');
+      return;
+    }
+    if (_downloadingResourceIds.contains(resource.id)) return;
+    if (_downloadedResources.containsKey(resource.id)) {
+      AppSnackbar.info('Already Saved', '${resource.title} is already available offline');
+      return;
+    }
+
+    _downloadingResourceIds.add(resource.id);
+
+    try {
+      final path = _extractStoragePath(resource.fileUrl!);
+      final bytes = await Supabase.instance.client.storage
+          .from('resources')
+          .download(path);
+
+      final dir = await getApplicationDocumentsDirectory();
+      final fileName = path.split('/').last;
+      final localFile = File('${dir.path}/$fileName');
+      await localFile.writeAsBytes(bytes);
+
+      _downloadedResources[resource.id] = localFile.path;
+      _downloadedResources.refresh();
+      await _persistDownloadedMap();
+
+      AppSnackbar.success('Saved Offline', '${resource.title} is now available offline');
+    } catch (e) {
+      debugPrint('Save offline error: $e');
+      AppSnackbar.error('Error', 'Failed to save resource offline');
+    } finally {
+      _downloadingResourceIds.remove(resource.id);
+    }
+  }
+
+  Future<void> _persistDownloadedMap() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'downloaded_resources',
+        jsonEncode(Map<String, String>.from(_downloadedResources)),
+      );
+    } catch (e) {
+      debugPrint('Persist downloaded map error: $e');
+    }
+  }
+
+  // ─── Delete ─────────────────────────────────────────────────────────────────
+
+  Future<void> deleteResource(ResourceModel resource) async {
+    final uid = currentUserId;
+    if (uid == null || resource.uploadedBy != uid) {
+      AppSnackbar.error('Unauthorized', 'You can only delete your own resources');
+      return;
+    }
+
+    try {
+      // Remove from storage
+      if (resource.fileUrl != null && resource.fileUrl!.isNotEmpty) {
+        final path = _extractStoragePath(resource.fileUrl!);
+        await Supabase.instance.client.storage.from('resources').remove([path]);
+      }
+
+      // Remove from DB
+      await Supabase.instance.client
+          .from('resources')
+          .delete()
+          .eq('id', resource.id);
+
+      // Clean up local offline copy if present
+      if (_downloadedResources.containsKey(resource.id)) {
+        final localPath = _downloadedResources[resource.id]!;
+        final file = File(localPath);
+        if (await file.exists()) await file.delete();
+        _downloadedResources.remove(resource.id);
+        await _persistDownloadedMap();
+      }
+
+      // Remove from favorites list
+      _favoriteResources.remove(resource.id);
+
+      // Remove from in-memory list
+      _allResources.removeWhere((r) => r.id == resource.id);
+      _applyFilters();
+
+      AppSnackbar.success('Deleted', '${resource.title} has been deleted');
+    } catch (e) {
+      debugPrint('Delete resource error: $e');
+      AppSnackbar.error('Error', 'Failed to delete resource');
+    }
+  }
+
+  // ─── Filters / tabs ─────────────────────────────────────────────────────────
 
   void toggleShowFavoritesOnly() {
     _showFavoritesOnly.value = !_showFavoritesOnly.value;
@@ -169,43 +389,6 @@ class ResourcesController extends GetxController {
     return subjects;
   }
 
-  Future<void> downloadResource(ResourceModel resource) async {
-    if (resource.fileUrl == null || resource.fileUrl!.isEmpty) {
-      AppSnackbar.error('Unavailable', 'No file available for this resource');
-      return;
-    }
-    try {
-      AppSnackbar.info('Opening', 'Opening ${resource.title}...');
-      final uri = Uri.parse(resource.fileUrl!);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        // Track the download in DB
-        final userId = Supabase.instance.client.auth.currentUser?.id;
-        if (userId != null) {
-          await Future.wait([
-            Supabase.instance.client.from('downloads').insert({
-              'user_id': userId,
-              'resource_id': resource.id,
-            }),
-            Supabase.instance.client
-                .from('resources')
-                .update({'download_count': resource.downloads + 1})
-                .eq('id', resource.id),
-          ]);
-          // Update local state
-          final index = _allResources.indexWhere((r) => r.id == resource.id);
-          if (index != -1) {
-            _allResources[index] = resource.copyWith(downloads: resource.downloads + 1);
-          }
-        }
-      } else {
-        AppSnackbar.error('Error', 'Could not open the file');
-      }
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to open resource');
-    }
-  }
-
   Future<void> refreshResources() async {
     await loadResources();
     await loadFavorites();
@@ -223,7 +406,19 @@ class ResourcesController extends GetxController {
 
   int getFavoritesCount() => _favoriteResources.length;
 
-  // ─── Mapper ─────────────────────────────────────────────────────────────────
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  /// Extracts the storage object path from either a full Supabase URL or a plain path.
+  String _extractStoragePath(String fileUrl) {
+    const marker = '/resources/';
+    final idx = fileUrl.indexOf(marker);
+    if (idx != -1 && fileUrl.startsWith('http')) {
+      return fileUrl.substring(idx + marker.length);
+    }
+    return fileUrl;
+  }
+
+  // ─── Mapper ──────────────────────────────────────────────────────────────────
 
   ResourceModel _fromRow(dynamic row) {
     final r = row as Map<String, dynamic>;

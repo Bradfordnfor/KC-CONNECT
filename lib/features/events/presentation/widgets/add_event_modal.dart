@@ -131,7 +131,10 @@ class _AddEventModalState extends State<AddEventModal> {
               hint: 'https://zoom.us/j/... or meet.google.com/...',
               controller: _meetingLinkController,
               keyboardType: TextInputType.url,
-              prefixIcon: const Icon(Icons.videocam_outlined, color: AppColors.blue),
+              prefixIcon: const Icon(
+                Icons.videocam_outlined,
+                color: AppColors.blue,
+              ),
             ),
             const SizedBox(height: 8),
 
@@ -144,10 +147,14 @@ class _AddEventModalState extends State<AddEventModal> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.payments_outlined, color: AppColors.blue, size: 18),
+                  const Icon(
+                    Icons.payments_outlined,
+                    color: AppColors.blue,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Registration fee: XAF 500',
+                    'Registration fee: XAF 20',
                     style: TextStyle(
                       color: AppColors.blue,
                       fontWeight: FontWeight.w600,
@@ -214,7 +221,10 @@ class _AddEventModalState extends State<AddEventModal> {
         DropdownButtonFormField<String>(
           initialValue: value,
           items: items.map((item) {
-            return DropdownMenuItem(value: item, child: Text(displayLabel(item)));
+            return DropdownMenuItem(
+              value: item,
+              child: Text(displayLabel(item)),
+            );
           }).toList(),
           onChanged: onChanged,
           decoration: InputDecoration(
@@ -238,7 +248,10 @@ class _AddEventModalState extends State<AddEventModal> {
 
     try {
       final authController = Get.find<AuthController>();
-      final hostName = authController.currentUser?['full_name'] as String? ?? 'KC Connect';
+      final hostName =
+          authController.currentUser?['full_name'] as String? ?? 'KC Connect';
+      final organizerRole =
+          authController.currentUser?['role'] as String? ?? 'staff';
       final organizerId = Supabase.instance.client.auth.currentUser?.id;
 
       final startDate = DateTime(
@@ -249,15 +262,19 @@ class _AddEventModalState extends State<AddEventModal> {
         _selectedTime!.minute,
       );
 
+      final endDate = startDate.add(const Duration(hours: 2));
+
       await Supabase.instance.client.from('events').insert({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'event_type': _eventType,
         'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
         'venue': _locationController.text.trim(),
         'host_name': hostName,
         'organized_by': organizerId,
-        'registration_fee': 500,
+        'organizer_role': organizerRole,
+        'registration_fee': 20,
         'requires_registration': true,
         'status': 'upcoming',
         'visibility': 'public',
@@ -268,6 +285,7 @@ class _AddEventModalState extends State<AddEventModal> {
       if (mounted) Navigator.pop(context);
       AppSnackbar.success('Created', 'Event created successfully');
     } catch (e) {
+      debugPrint('Create event error: $e');
       AppSnackbar.error('Error', 'Failed to create event');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

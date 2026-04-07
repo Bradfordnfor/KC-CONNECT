@@ -66,7 +66,9 @@ class AdminSettingsPage extends StatelessWidget {
   }
 
   Widget _buildConfigSection(
-      BuildContext context, AdminSettingsController controller) {
+    BuildContext context,
+    AdminSettingsController controller,
+  ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -91,52 +93,63 @@ class AdminSettingsPage extends StatelessWidget {
                 color: AppColors.success.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.payments_outlined,
-                  color: AppColors.success, size: 22),
+              child: const Icon(
+                Icons.payments_outlined,
+                color: AppColors.success,
+                size: 22,
+              ),
             ),
             title: Text(
               'Subscription Fee',
               style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
             ),
-            subtitle: Obx(() => Text(
-                  'XAF ${controller.subscriptionFee.toStringAsFixed(0)} / month',
-                  style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
-                )),
-            trailing: const Icon(Icons.edit_outlined,
-                size: 18, color: AppColors.blue),
+            subtitle: Obx(
+              () => Text(
+                'XAF ${controller.subscriptionFee.toStringAsFixed(0)} / year',
+                style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
+              ),
+            ),
+            trailing: const Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: AppColors.blue,
+            ),
             onTap: () => _showFeeDialog(context, controller),
           ),
           const Divider(height: 1, indent: 60),
           // Maintenance mode tile
-          Obx(() => ListTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.construction_outlined,
-                      color: AppColors.warning, size: 22),
+          Obx(
+            () => ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                title: Text(
-                  'Maintenance Mode',
-                  style:
-                      AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                child: const Icon(
+                  Icons.construction_outlined,
+                  color: AppColors.warning,
+                  size: 22,
                 ),
-                subtitle: Text(
-                  controller.maintenanceMode
-                      ? 'App offline for non-admins'
-                      : 'App online for all users',
-                  style:
-                      AppTextStyles.caption.copyWith(color: Colors.grey[600]),
-                ),
-                trailing: Switch(
-                  value: controller.maintenanceMode,
-                  onChanged: controller.toggleMaintenanceMode,
-                  activeThumbColor: AppColors.warning,
-                ),
-              )),
+              ),
+              title: Text(
+                'Maintenance Mode',
+                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                controller.maintenanceMode
+                    ? 'App offline for non-admins'
+                    : 'App online for all users',
+                style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
+              ),
+              trailing: Switch(
+                value: controller.maintenanceMode,
+                onChanged: controller.toggleMaintenanceMode,
+                activeThumbColor: AppColors.warning,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -168,14 +181,14 @@ class AdminSettingsPage extends StatelessWidget {
           _buildInfoTile(
             icon: Icons.cloud_done_outlined,
             title: 'Database',
-            value: 'Supabase — Connected',
+            value: 'Online - Connected',
             iconColor: AppColors.success,
           ),
           const Divider(height: 1, indent: 60),
           _buildInfoTile(
             icon: Icons.shield_outlined,
             title: 'Platform',
-            value: 'Flutter (iOS & Android)',
+            value: 'Mobile (iOS & Android)',
             iconColor: AppColors.info,
           ),
         ],
@@ -214,7 +227,9 @@ class AdminSettingsPage extends StatelessWidget {
   }
 
   Widget _buildAccountSection(
-      BuildContext context, AdminSettingsController controller) {
+    BuildContext context,
+    AdminSettingsController controller,
+  ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -238,8 +253,11 @@ class AdminSettingsPage extends StatelessWidget {
                 color: AppColors.blue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.lock_outline,
-                  color: AppColors.blue, size: 22),
+              child: const Icon(
+                Icons.lock_outline,
+                color: AppColors.blue,
+                size: 22,
+              ),
             ),
             title: Text(
               'Change Password',
@@ -249,8 +267,11 @@ class AdminSettingsPage extends StatelessWidget {
               'Update your admin password',
               style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios,
-                size: 16, color: Colors.grey),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey,
+            ),
             onTap: () => _showChangePasswordDialog(context, controller),
           ),
           const Divider(height: 1, indent: 60),
@@ -262,8 +283,7 @@ class AdminSettingsPage extends StatelessWidget {
                 color: AppColors.error.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child:
-                  const Icon(Icons.logout, color: AppColors.error, size: 22),
+              child: const Icon(Icons.logout, color: AppColors.error, size: 22),
             ),
             title: Text(
               'Logout',
@@ -283,7 +303,10 @@ class AdminSettingsPage extends StatelessWidget {
     );
   }
 
-  void _showFeeDialog(BuildContext context, AdminSettingsController controller) {
+  void _showFeeDialog(
+    BuildContext context,
+    AdminSettingsController controller,
+  ) {
     final feeController = TextEditingController(
       text: controller.subscriptionFee.toStringAsFixed(0),
     );
@@ -300,7 +323,7 @@ class AdminSettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Set the monthly subscription fee charged to students and alumni.',
+              'Set the annual subscription fee charged to staffs, students and alumni.',
               style: AppTextStyles.caption.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 16),
@@ -312,11 +335,14 @@ class AdminSettingsPage extends StatelessWidget {
                 labelText: 'Fee (XAF)',
                 prefixText: 'XAF ',
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: AppColors.blue, width: 1.5),
+                  borderSide: const BorderSide(
+                    color: AppColors.blue,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -325,43 +351,51 @@ class AdminSettingsPage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Cancel',
-                style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
           ),
-          Obx(() => ElevatedButton(
-                onPressed: controller.isSaving
-                    ? null
-                    : () {
-                        final fee =
-                            double.tryParse(feeController.text.trim()) ?? 1000;
-                        if (fee < 100) {
-                          return;
-                        }
-                        Get.back();
-                        controller.updateSubscriptionFee(fee);
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blue,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+          Obx(
+            () => ElevatedButton(
+              onPressed: controller.isSaving
+                  ? null
+                  : () {
+                      final fee =
+                          double.tryParse(feeController.text.trim()) ?? 1000;
+                      if (fee < 100) {
+                        return;
+                      }
+                      Get.back();
+                      controller.updateSubscriptionFee(fee);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: controller.isSaving
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text('Save',
-                        style: TextStyle(color: AppColors.white)),
-              )),
+              ),
+              child: controller.isSaving
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Save',
+                      style: TextStyle(color: AppColors.white),
+                    ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   void _showChangePasswordDialog(
-      BuildContext context, AdminSettingsController controller) {
+    BuildContext context,
+    AdminSettingsController controller,
+  ) {
     final newPwController = TextEditingController();
     final confirmPwController = TextEditingController();
     final obscureNew = true.obs;
@@ -377,45 +411,54 @@ class AdminSettingsPage extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Obx(() => TextField(
-                  controller: newPwController,
-                  obscureText: obscureNew.value,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscureNew.value
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () => obscureNew.value = !obscureNew.value,
-                    ),
+            Obx(
+              () => TextField(
+                controller: newPwController,
+                obscureText: obscureNew.value,
+                decoration: InputDecoration(
+                  labelText: 'New Password',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                )),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscureNew.value
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () => obscureNew.value = !obscureNew.value,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
-            Obx(() => TextField(
-                  controller: confirmPwController,
-                  obscureText: obscureConfirm.value,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscureConfirm.value
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () =>
-                          obscureConfirm.value = !obscureConfirm.value,
-                    ),
+            Obx(
+              () => TextField(
+                controller: confirmPwController,
+                obscureText: obscureConfirm.value,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                )),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscureConfirm.value
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () =>
+                        obscureConfirm.value = !obscureConfirm.value,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child:
-                Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
             onPressed: () {
@@ -431,10 +474,13 @@ class AdminSettingsPage extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.blue,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Update',
-                style: TextStyle(color: AppColors.white)),
+            child: const Text(
+              'Update',
+              style: TextStyle(color: AppColors.white),
+            ),
           ),
         ],
       ),
@@ -442,7 +488,9 @@ class AdminSettingsPage extends StatelessWidget {
   }
 
   void _showLogoutDialog(
-      BuildContext context, AdminSettingsController controller) {
+    BuildContext context,
+    AdminSettingsController controller,
+  ) {
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -454,8 +502,7 @@ class AdminSettingsPage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child:
-                Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
             onPressed: () {
@@ -465,10 +512,13 @@ class AdminSettingsPage extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Logout',
-                style: TextStyle(color: AppColors.white)),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: AppColors.white),
+            ),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
-import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/utils/validators.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
@@ -19,7 +20,8 @@ class _AddProductModalState extends State<AddProductModal> {
   final _descriptionController = TextEditingController();
   final _stockController = TextEditingController();
 
-  PlatformFile? _pickedImage;
+  XFile? _pickedImage;
+  int _imageSizeBytes = 0;
   bool _isUploading = false;
   String _selectedCategory = 'clothing';
 
@@ -101,8 +103,8 @@ class _AddProductModalState extends State<AddProductModal> {
               ),
               label: Text(
                 _pickedImage != null
-                    ? '${_pickedImage!.name}  '
-                        '(${FileSizeValidator.formatBytes(_pickedImage!.size)})'
+                    ? '${_pickedImage!.name.split('/').last.split('\\').last}  '
+                        '(${FileSizeValidator.formatBytes(_imageSizeBytes)})'
                     : 'Select Product Image',
                 overflow: TextOverflow.ellipsis,
               ),
@@ -119,7 +121,7 @@ class _AddProductModalState extends State<AddProductModal> {
             if (_isUploading) ...[
               const SizedBox(height: 16),
               AppUploadingIndicator(
-                message: 'Uploading ${_pickedImage?.name ?? 'image'}...',
+                message: 'Uploading image...',
               ),
             ],
 
@@ -152,24 +154,28 @@ class _AddProductModalState extends State<AddProductModal> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
+    final result = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 40,
+      maxWidth: 800,
     );
-    if (result != null && result.files.isNotEmpty) {
-      final file = result.files.first;
-      final sizeError = FileSizeValidator.validate(file.size, 5);
+    if (result != null) {
+      final size = await result.length();
+      final sizeError = FileSizeValidator.validate(size, 5);
       if (sizeError != null) {
         AppSnackbar.error('Image Too Large', sizeError);
         return;
       }
-      setState(() => _pickedImage = file);
+      setState(() {
+        _pickedImage = result;
+        _imageSizeBytes = size;
+      });
     }
   }
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_pickedImage == null || _pickedImage!.bytes == null) {
+    if (_pickedImage == null) {
       AppSnackbar.error('No Image', 'Please select a product image');
       return;
     }
@@ -181,20 +187,20 @@ class _AddProductModalState extends State<AddProductModal> {
       if (userId == null) throw Exception('Not authenticated');
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final safeName =
-          _pickedImage!.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final fileName = _pickedImage!.name.split('/').last.split('\\').last;
+      final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       final storagePath = '$userId/${timestamp}_$safeName';
 
       await Supabase.instance.client.storage
-          .from('products')
-          .uploadBinary(
+          .from('product_images')
+          .upload(
             storagePath,
-            _pickedImage!.bytes!,
+            File(_pickedImage!.path),
             fileOptions: const FileOptions(upsert: false),
           );
 
       final imageUrl = Supabase.instance.client.storage
-          .from('products')
+          .from('product_images')
           .getPublicUrl(storagePath);
 
       await Supabase.instance.client.from('products').insert({
@@ -205,7 +211,6 @@ class _AddProductModalState extends State<AddProductModal> {
         'primary_image_url': imageUrl,
         'category': _selectedCategory,
         'status': 'active',
-        'added_by': userId,
       });
 
       if (mounted) Navigator.pop(context);

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/features/admin/presentation/screens/admin_navigation_screen.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
+import 'package:kc_connect/features/auth/presentation/screens/check_email_screen.dart';
 import 'package:kc_connect/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:kc_connect/features/auth/presentation/screens/login_screen.dart';
 import 'package:kc_connect/features/auth/presentation/screens/otp_verification_screen.dart';
@@ -189,6 +190,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.oTPVerification,
       page: () => const OTPVerificationScreen(),
+      transition: Transition.rightToLeft,
+    ),
+
+    GetPage(
+      name: AppRoutes.checkEmail,
+      page: () => const CheckEmailScreen(),
       transition: Transition.rightToLeft,
     ),
   ];

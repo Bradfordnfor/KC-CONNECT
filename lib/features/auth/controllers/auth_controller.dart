@@ -58,7 +58,11 @@ class AuthController extends GetxController {
       } else if (event.event == AuthChangeEvent.signedOut) {
         _isAuthenticated.value = false;
         _currentUser.value = null;
-        if (Get.currentRoute != AppRoutes.login) {
+        // Don't redirect if we're already on the login or check-email screen
+        final cur = Get.currentRoute;
+        if (cur != AppRoutes.login &&
+            cur != AppRoutes.checkEmail &&
+            cur != AppRoutes.register) {
           Get.offAllNamed(AppRoutes.login);
         }
       }
@@ -320,13 +324,14 @@ class AuthController extends GetxController {
     }
   }
 
-  // Sign out
+  // Sign out — navigation is handled solely by the onAuthStateChange listener
   Future<void> signOut() async {
     try {
       await Supabase.instance.client.auth.signOut();
-      _isAuthenticated.value = false;
-      _currentUser.value = null;
-      Get.offAllNamed(AppRoutes.login);
+      // Do NOT call Get.offAllNamed here — the signedOut event in the listener
+      // above will fire immediately and handle the redirect. Calling it twice
+      // disposes the new LoginController before the screen finishes building,
+      // which causes the "TextEditingController used after disposed" crash.
     } catch (e) {
       debugPrint('Sign out error: $e');
     }

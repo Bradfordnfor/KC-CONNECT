@@ -76,6 +76,9 @@ class AppRoutes {
   /// OTP Verification page
   static const String oTPVerification = '/otp-verification';
 
+  /// Check email page - shown after student/alumni signup
+  static const String checkEmail = '/check-email';
+
   // ==================== HELPER METHODS ====================
   /// Get alumni detail route with ID
   static String getAlumniDetailRoute(String id) => '$alumniDetail?id=$id';

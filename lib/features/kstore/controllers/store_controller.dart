@@ -117,7 +117,7 @@ class StoreController extends GetxController {
         (r['colors'] as List?)?.map((e) => e.toString()).toList() ?? [];
     final createdAt = DateTime.tryParse(r['created_at'] ?? '');
     final isRecent = createdAt != null &&
-        DateTime.now().difference(createdAt).inDays <= 30;
+        DateTime.now().difference(createdAt).inDays <= 3;
 
     return ProductModel(
       id: r['id'] ?? '',

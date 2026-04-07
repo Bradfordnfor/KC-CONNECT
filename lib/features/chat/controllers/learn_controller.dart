@@ -15,6 +15,7 @@ class LearnController extends GetxController {
   final _currentTabIndex = 0.obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
+  final _replyingTo = Rxn<MessageModel>();
 
   // Text controllers
   final messageController = TextEditingController();
@@ -22,10 +23,9 @@ class LearnController extends GetxController {
   // Supabase realtime channel
   RealtimeChannel? _channel;
 
-  // Tab rooms (internal names match tab labels)
+  // Tab rooms
   final List<String> chatRooms = ['grade10', 'grade12'];
 
-  // Map controller room name ↔ DB room value
   String _toDbRoom(String room) => room == 'grade10' ? 'grade_10' : 'grade_12';
   String _fromDbRoom(String dbRoom) =>
       dbRoom == 'grade_10' ? 'grade10' : 'grade12';
@@ -37,6 +37,7 @@ class LearnController extends GetxController {
   String get currentRoom => chatRooms[_currentTabIndex.value];
   bool get isLoading => _isLoading.value;
   String get errorMessage => _errorMessage.value;
+  MessageModel? get replyingTo => _replyingTo.value;
 
   List<MessageModel> get currentMessages {
     return _currentTabIndex.value == 0 ? _grade10Messages : _grade12Messages;
@@ -56,7 +57,13 @@ class LearnController extends GetxController {
     super.onClose();
   }
 
-  // Load messages from Supabase
+  // ─── Reply ─────────────────────────────────────────────────────────────────
+
+  void setReplyTo(MessageModel message) => _replyingTo.value = message;
+  void clearReply() => _replyingTo.value = null;
+
+  // ─── Load ──────────────────────────────────────────────────────────────────
+
   Future<void> loadMessages() async {
     try {
       _isLoading.value = true;
@@ -66,7 +73,11 @@ class LearnController extends GetxController {
 
       final data = await Supabase.instance.client
           .from('messages')
-          .select('id, content, room, sender_id, sender_name, created_at, message_type, file_url, file_name, file_size')
+          .select(
+            'id, content, room, sender_id, sender_name, created_at, '
+            'message_type, file_url, file_name, file_size, '
+            'reply_to_id, reply_to_content, reply_to_sender',
+          )
           .inFilter('room', ['grade_10', 'grade_12'])
           .eq('is_deleted', false)
           .order('created_at', ascending: true)
@@ -108,8 +119,13 @@ class LearnController extends GetxController {
       fileUrl: row['file_url'] as String?,
       fileName: row['file_name'] as String?,
       fileSize: row['file_size'] as int?,
+      replyToId: row['reply_to_id'] as String?,
+      replyToContent: row['reply_to_content'] as String?,
+      replyToSenderName: row['reply_to_sender'] as String?,
     );
   }
+
+  // ─── Realtime ──────────────────────────────────────────────────────────────
 
   void _subscribeToMessages() {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
@@ -128,7 +144,6 @@ class LearnController extends GetxController {
             if (row['is_deleted'] == true) return;
 
             final msg = _fromRow(row, currentUserId);
-            // Skip if it's our own optimistic message that was already added
             final room = _fromDbRoom(dbRoom);
             final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
             if (list.any((m) => m.id == msg.id)) return;
@@ -143,15 +158,18 @@ class LearnController extends GetxController {
         .subscribe();
   }
 
-  // Change tab
+  // ─── Change tab ────────────────────────────────────────────────────────────
+
   void changeTab(int index) {
     if (index != _currentTabIndex.value) {
       _currentTabIndex.value = index;
       messageController.clear();
+      clearReply();
     }
   }
 
-  // Send message
+  // ─── Send text message ─────────────────────────────────────────────────────
+
   Future<void> sendMessage(String content) async {
     if (content.trim().isEmpty) return;
 
@@ -167,7 +185,10 @@ class LearnController extends GetxController {
     final senderRole =
         authController.currentUser?['role'] as String? ?? 'student';
 
-    // Optimistic add
+    // Capture reply before clearing
+    final reply = _replyingTo.value;
+    clearReply();
+
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final optimistic = MessageModel(
       id: tempId,
@@ -178,6 +199,11 @@ class LearnController extends GetxController {
       isMe: true,
       chatRoom: room,
       status: MessageStatus.sending,
+      replyToId: reply?.id,
+      replyToContent: reply?.content.isNotEmpty == true
+          ? reply!.content
+          : (reply?.isImage == true ? '📷 Image' : reply != null ? '📎 File' : null),
+      replyToSenderName: reply?.senderName,
     );
 
     if (room == 'grade10') {
@@ -188,7 +214,7 @@ class LearnController extends GetxController {
     messageController.clear();
 
     try {
-      final result = await supabase.from('messages').insert({
+      final payload = {
         'content': content.trim(),
         'room': dbRoom,
         'sender_id': currentUser.id,
@@ -199,7 +225,19 @@ class LearnController extends GetxController {
         'is_flagged': false,
         'is_pinned': false,
         'message_type': 'text',
-      }).select('id, created_at').single();
+        if (reply != null) 'reply_to_id': reply.id,
+        if (reply != null)
+          'reply_to_content': reply.content.isNotEmpty
+              ? reply.content
+              : (reply.isImage ? '📷 Image' : '📎 File'),
+        if (reply != null) 'reply_to_sender': reply.senderName,
+      };
+
+      final result = await supabase
+          .from('messages')
+          .insert(payload)
+          .select('id, created_at')
+          .single();
 
       final sent = optimistic.copyWith(
         id: result['id'] as String,
@@ -207,75 +245,52 @@ class LearnController extends GetxController {
         status: MessageStatus.sent,
       );
 
-      final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
-      final idx = list.indexWhere((m) => m.id == tempId);
-      if (idx != -1) {
-        if (room == 'grade10') {
-          _grade10Messages[idx] = sent;
-        } else {
-          _grade12Messages[idx] = sent;
-        }
-      }
+      _replaceOptimistic(room, tempId, sent);
     } catch (e) {
-      final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
-      final idx = list.indexWhere((m) => m.id == tempId);
-      if (idx != -1) {
-        final failed = optimistic.copyWith(status: MessageStatus.failed);
-        if (room == 'grade10') {
-          _grade10Messages[idx] = failed;
-        } else {
-          _grade12Messages[idx] = failed;
-        }
-      }
-      Get.snackbar(
-        'Error',
-        'Failed to send message',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      _replaceOptimistic(
+          room, tempId, optimistic.copyWith(status: MessageStatus.failed));
+      Get.snackbar('Error', 'Failed to send message',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2));
     }
   }
 
-  // Pick image from camera and send
+  // ─── File / image sends ────────────────────────────────────────────────────
+
   Future<void> sendImageFromCamera() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.camera, imageQuality: 70);
     if (picked == null) return;
     final bytes = Uint8List.fromList(await picked.readAsBytes());
     await _uploadAndSendFile(
-      bytes: bytes,
-      fileName: picked.name,
-      fileSize: bytes.length,
-      messageType: 'image',
-    );
+        bytes: bytes,
+        fileName: picked.name,
+        fileSize: bytes.length,
+        messageType: 'image');
   }
 
-  // Pick image from gallery and send
   Future<void> sendImageFromGallery() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 70);
     if (picked == null) return;
     final bytes = Uint8List.fromList(await picked.readAsBytes());
     await _uploadAndSendFile(
-      bytes: bytes,
-      fileName: picked.name,
-      fileSize: bytes.length,
-      messageType: 'image',
-    );
+        bytes: bytes,
+        fileName: picked.name,
+        fileSize: bytes.length,
+        messageType: 'image');
   }
 
-  // Pick a file (PDF, doc, etc.) and send
   Future<void> sendFile() async {
     final result = await FilePicker.platform.pickFiles(withData: true);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.bytes == null) return;
     await _uploadAndSendFile(
-      bytes: Uint8List.fromList(file.bytes!),
-      fileName: file.name,
-      fileSize: file.size,
-      messageType: 'file',
-    );
+        bytes: Uint8List.fromList(file.bytes!),
+        fileName: file.name,
+        fileSize: file.size,
+        messageType: 'file');
   }
 
   Future<void> _uploadAndSendFile({
@@ -291,10 +306,11 @@ class LearnController extends GetxController {
     final room = currentRoom;
     final dbRoom = _toDbRoom(room);
     final authController = Get.find<AuthController>();
-    final senderName = authController.currentUser?['full_name'] as String? ?? 'Unknown';
-    final senderRole = authController.currentUser?['role'] as String? ?? 'student';
+    final senderName =
+        authController.currentUser?['full_name'] as String? ?? 'Unknown';
+    final senderRole =
+        authController.currentUser?['role'] as String? ?? 'student';
 
-    // Optimistic placeholder
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final optimistic = MessageModel(
       id: tempId,
@@ -309,6 +325,7 @@ class LearnController extends GetxController {
       fileName: fileName,
       fileSize: fileSize,
     );
+
     if (room == 'grade10') {
       _grade10Messages.add(optimistic);
     } else {
@@ -317,7 +334,8 @@ class LearnController extends GetxController {
 
     try {
       final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final storagePath = '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      final storagePath =
+          '${currentUser.id}/${DateTime.now().millisecondsSinceEpoch}_$safeName';
 
       await supabase.storage
           .from('chat-attachments')
@@ -350,49 +368,33 @@ class LearnController extends GetxController {
         fileUrl: fileUrl,
       );
 
-      final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
-      final idx = list.indexWhere((m) => m.id == tempId);
-      if (idx != -1) {
-        if (room == 'grade10') {
-          _grade10Messages[idx] = sent;
-        } else {
-          _grade12Messages[idx] = sent;
-        }
-      }
+      _replaceOptimistic(room, tempId, sent);
     } catch (e) {
-      final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
-      final idx = list.indexWhere((m) => m.id == tempId);
-      if (idx != -1) {
-        if (room == 'grade10') {
-          _grade10Messages[idx] = optimistic.copyWith(status: MessageStatus.failed);
-        } else {
-          _grade12Messages[idx] = optimistic.copyWith(status: MessageStatus.failed);
-        }
-      }
-      Get.snackbar('Error', 'Failed to send file',
+      _replaceOptimistic(
+          room, tempId, optimistic.copyWith(status: MessageStatus.failed));
+      debugPrint('File upload error: $e');
+      Get.snackbar('Error', e.toString(),
           snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2));
+          duration: const Duration(seconds: 4));
     }
   }
 
-  // Delete message (soft-delete in DB)
+  // ─── Delete ────────────────────────────────────────────────────────────────
+
   Future<void> deleteMessage(String messageId) async {
-    try {
-      final room = currentRoom;
-      final messageList =
-          room == 'grade10' ? _grade10Messages : _grade12Messages;
-      final message = messageList.firstWhere((m) => m.id == messageId);
+    final room = currentRoom;
+    final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
+    final message = list.firstWhereOrNull((m) => m.id == messageId);
 
-      if (!message.isMe) {
-        Get.snackbar(
-          'Error',
-          'You can only delete your own messages',
+    if (message == null) return;
+    if (!message.isMe) {
+      Get.snackbar('Error', 'You can only delete your own messages',
           snackPosition: SnackPosition.BOTTOM,
-          duration: const Duration(seconds: 2),
-        );
-        return;
-      }
+          duration: const Duration(seconds: 2));
+      return;
+    }
 
+    try {
       await Supabase.instance.client.from('messages').update({
         'is_deleted': true,
         'deleted_at': DateTime.now().toIso8601String(),
@@ -403,48 +405,33 @@ class LearnController extends GetxController {
       } else {
         _grade12Messages.removeWhere((m) => m.id == messageId);
       }
-
-      Get.snackbar(
-        'Deleted',
-        'Message deleted successfully',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete message',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 2),
-      );
+      Get.snackbar('Error', 'Failed to delete message',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2));
     }
   }
 
-  // Refresh messages
-  Future<void> refreshMessages() async {
-    await loadMessages();
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  void _replaceOptimistic(String room, String tempId, MessageModel replacement) {
+    final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
+    final idx = list.indexWhere((m) => m.id == tempId);
+    if (idx == -1) return;
+    if (room == 'grade10') {
+      _grade10Messages[idx] = replacement;
+    } else {
+      _grade12Messages[idx] = replacement;
+    }
   }
 
-  // Get message count for room
-  int getMessageCount(String room) {
-    return room == 'grade10'
-        ? _grade10Messages.length
-        : _grade12Messages.length;
-  }
+  Future<void> refreshMessages() async => loadMessages();
 
-  // Get last message for room
+  int getMessageCount(String room) =>
+      room == 'grade10' ? _grade10Messages.length : _grade12Messages.length;
+
   MessageModel? getLastMessage(String room) {
     final messages = room == 'grade10' ? _grade10Messages : _grade12Messages;
     return messages.isEmpty ? null : messages.last;
-  }
-
-  // Search messages in current room
-  List<MessageModel> searchMessages(String query) {
-    if (query.trim().isEmpty) return currentMessages;
-
-    return currentMessages.where((m) {
-      return m.content.toLowerCase().contains(query.toLowerCase()) ||
-          m.senderName.toLowerCase().contains(query.toLowerCase());
-    }).toList();
   }
 }

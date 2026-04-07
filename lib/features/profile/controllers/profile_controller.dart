@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
@@ -34,6 +35,7 @@ class ProfileController extends GetxController {
   final _recentActivity = <ActivityItem>[].obs;
   final _isLoading = false.obs;
   final _isUpdating = false.obs;
+  final _isUploadingPhoto = false.obs;
 
   int get myEventsCount => _myEventsCount.value;
   int get savedCount => _savedCount.value;
@@ -41,6 +43,7 @@ class ProfileController extends GetxController {
   List<ActivityItem> get recentActivity => _recentActivity;
   bool get isLoading => _isLoading.value;
   bool get isUpdating => _isUpdating.value;
+  bool get isUploadingPhoto => _isUploadingPhoto.value;
 
   Map<String, dynamic>? get user => Get.find<AuthController>().currentUser;
 
@@ -181,6 +184,49 @@ class ProfileController extends GetxController {
       AppSnackbar.error('Error', 'Failed to update profile');
     } finally {
       _isUpdating.value = false;
+    }
+  }
+
+  Future<void> uploadProfilePicture() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 512,
+    );
+    if (picked == null) return;
+
+    _isUploadingPhoto.value = true;
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last.toLowerCase();
+      final storagePath = '$userId/avatar.$ext';
+
+      await Supabase.instance.client.storage
+          .from('profile_pictures')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final imageUrl = Supabase.instance.client.storage
+          .from('profile_pictures')
+          .getPublicUrl(storagePath);
+
+      await Supabase.instance.client
+          .from('users')
+          .update({'profile_image_url': imageUrl}).eq('id', userId);
+
+      await Get.find<AuthController>().refreshProfile();
+      AppSnackbar.success('Updated', 'Profile picture updated');
+    } catch (e) {
+      debugPrint('Upload profile picture error: $e');
+      AppSnackbar.error('Error', 'Failed to upload picture');
+    } finally {
+      _isUploadingPhoto.value = false;
     }
   }
 

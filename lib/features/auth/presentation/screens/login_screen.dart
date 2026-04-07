@@ -5,12 +5,25 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/features/auth/controllers/login_controller.dart';
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  late final LoginController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    Get.delete<LoginController>(force: true);
+    controller = Get.put(LoginController());
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(LoginController());
 
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/config/app_constants.dart';
+import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 
@@ -127,11 +128,11 @@ class SignupController extends GetxController {
             },
           );
         } else if (result['requiresEmailConfirmation'] == true) {
-          _showSuccess(
-            result['message'] ?? 'Confirm your email to complete signup.',
+          // Navigate to check email screen so user knows what to do next
+          Get.offNamed(
+            AppRoutes.checkEmail,
+            arguments: {'email': emailController.text.trim()},
           );
-          // Don't navigate here - let the auth state change listener handle navigation
-          // after email confirmation
         } else {
           // Direct signup success
           Get.offAllNamed('/main');

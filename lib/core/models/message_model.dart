@@ -15,6 +15,10 @@ class MessageModel {
   final String? fileUrl;
   final String? fileName;
   final int? fileSize;
+  // Reply fields
+  final String? replyToId;
+  final String? replyToContent;
+  final String? replyToSenderName;
 
   MessageModel({
     required this.id,
@@ -31,6 +35,9 @@ class MessageModel {
     this.fileUrl,
     this.fileName,
     this.fileSize,
+    this.replyToId,
+    this.replyToContent,
+    this.replyToSenderName,
   });
 
   bool get isImage => messageType == 'image';
@@ -110,6 +117,9 @@ class MessageModel {
     String? fileUrl,
     String? fileName,
     int? fileSize,
+    String? replyToId,
+    String? replyToContent,
+    String? replyToSenderName,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -126,6 +136,9 @@ class MessageModel {
       fileUrl: fileUrl ?? this.fileUrl,
       fileName: fileName ?? this.fileName,
       fileSize: fileSize ?? this.fileSize,
+      replyToId: replyToId ?? this.replyToId,
+      replyToContent: replyToContent ?? this.replyToContent,
+      replyToSenderName: replyToSenderName ?? this.replyToSenderName,
     );
   }
 

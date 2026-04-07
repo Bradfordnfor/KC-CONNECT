@@ -217,16 +217,18 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
             fileOptions: const FileOptions(upsert: false),
           );
 
-      final fileUrl = Supabase.instance.client.storage
-          .from('resources')
-          .getPublicUrl(storagePath);
-
+      // Store the storage path (not a public URL) — signed URLs are
+      // generated at download time because the bucket is private.
       await Supabase.instance.client.from('resources').insert({
         'title': _titleController.text.trim(),
         'subject': _subject,
         'category': _category,
         'description': _descriptionController.text.trim(),
-        'file_url': fileUrl,
+        'file_url': storagePath,
+        'file_name': _pickedFile!.name,
+        'file_type': _pickedFile!.name.split('.').last.toLowerCase(),
+        'file_size': _pickedFile!.size,
+        'uploader_role': Get.find<AuthController>().currentUser?['role'] as String? ?? 'staff',
         'uploaded_by': userId,
         'uploader_name': uploaderName,
         'download_count': 0,

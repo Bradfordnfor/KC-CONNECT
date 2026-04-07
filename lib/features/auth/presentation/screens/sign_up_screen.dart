@@ -5,12 +5,25 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/features/auth/controllers/signup_controller.dart';
 
-class SignupScreen extends StatelessWidget {
-  const SignupScreen({Key? key}) : super(key: key);
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
+
+  @override
+  State<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends State<SignupScreen> {
+  late final SignupController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    Get.delete<SignupController>(force: true);
+    controller = Get.put(SignupController());
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(SignupController());
 
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
@@ -47,7 +60,7 @@ class SignupScreen extends StatelessWidget {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -131,7 +144,7 @@ class SignupScreen extends StatelessWidget {
                       // Role Dropdown
                       Obx(
                         () => DropdownButtonFormField<String>(
-                          value: controller.selectedRole,
+                          initialValue: controller.selectedRole,
                           decoration: InputDecoration(
                             labelText: 'Role',
                             prefixIcon: const Icon(Icons.work_outline),
@@ -218,7 +231,7 @@ class SignupScreen extends StatelessWidget {
                             padding: const EdgeInsets.all(12),
                             margin: const EdgeInsets.only(bottom: 24),
                             decoration: BoxDecoration(
-                              color: AppColors.info.withOpacity(0.1),
+                              color: AppColors.info.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(

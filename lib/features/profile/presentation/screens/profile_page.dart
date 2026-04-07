@@ -67,30 +67,62 @@ class ProfilePage extends StatelessWidget {
   Widget _buildProfileHeader(BuildContext context, ProfileController controller) {
     return Obx(() => Column(
       children: [
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            gradient: AppColors.gradientColor,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.red.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+        GestureDetector(
+          onTap: controller.isUploadingPhoto ? null : controller.uploadProfilePicture,
+          child: Stack(
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  gradient: AppColors.gradientColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.red.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: controller.isUploadingPhoto
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : controller.imageUrl != null
+                        ? ClipOval(
+                            child: Image.network(
+                              controller.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.person,
+                                  color: AppColors.white,
+                                  size: 50),
+                            ),
+                          )
+                        : const Icon(Icons.person,
+                            color: AppColors.white, size: 50),
+              ),
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.blue,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.camera_alt,
+                      color: AppColors.white, size: 14),
+                ),
               ),
             ],
           ),
-          child: controller.imageUrl != null
-              ? ClipOval(
-                  child: Image.network(
-                    controller.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.person, color: AppColors.white, size: 50),
-                  ),
-                )
-              : const Icon(Icons.person, color: AppColors.white, size: 50),
         ),
         const SizedBox(height: 16),
         Text(

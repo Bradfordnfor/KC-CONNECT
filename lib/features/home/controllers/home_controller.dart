@@ -1,4 +1,5 @@
 // lib/features/home/controllers/home_controller.dart
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
 import 'package:kc_connect/core/models/event_model.dart';
@@ -56,20 +57,15 @@ class HomeController extends GetxController {
   }
 
   Future<void> loadDashboardData() async {
-    try {
-      _isLoading.value = true;
-      _errorMessage.value = '';
-      await Future.wait([
-        _loadStatistics(),
-        _loadFeaturedEvents(),
-        _loadRecentResources(),
-        _loadFeaturedAlumni(),
-      ]);
-      _isLoading.value = false;
-    } catch (e) {
-      _errorMessage.value = 'Failed to load dashboard';
-      _isLoading.value = false;
-    }
+    _isLoading.value = true;
+    _errorMessage.value = '';
+    await Future.wait([
+      _loadStatistics().catchError((e) => debugPrint('Stats error: $e')),
+      _loadFeaturedEvents().catchError((e) => debugPrint('Events error: $e')),
+      _loadRecentResources().catchError((e) => debugPrint('Resources error: $e')),
+      _loadFeaturedAlumni().catchError((e) => debugPrint('Alumni error: $e')),
+    ]);
+    _isLoading.value = false;
   }
 
   Future<void> _loadStatistics() async {

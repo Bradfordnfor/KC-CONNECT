@@ -129,10 +129,11 @@ class NewsPage extends StatelessWidget {
       onDismissed: (_) => controller.deleteNotification(notification.id),
       child: GestureDetector(
         onTap: () {
-          controller.handleNotificationTap(notification);
+          controller.markAsRead(notification.id);
           _showNotificationDetail(context, notification, controller);
         },
         child: Container(
+          constraints: const BoxConstraints(minHeight: 90),
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -155,10 +156,10 @@ class NewsPage extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Type icon
               Container(
                 width: 40,
                 height: 40,
+                margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
                   color: isRead
                       ? AppColors.blue.withValues(alpha: 0.1)
@@ -175,38 +176,37 @@ class NewsPage extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Text(
                       notification.title,
                       style: AppTextStyles.body.copyWith(
                         color: AppColors.blue,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 14,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       notification.description,
                       style: AppTextStyles.body.copyWith(
                         color: Colors.grey[700],
-                        fontSize: 14,
-                        height: 1.4,
+                        fontSize: 13,
+                        height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 3),
                     Text(
                       notification.formattedTimestamp,
                       style: AppTextStyles.caption.copyWith(
                         color: Colors.grey[500],
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                     ),
-                    if (notification.actionType == 'mentorship_request' &&
-                        notification.actionId != null)
-                      _buildMentorshipActions(
-                          notification, controller, context),
                   ],
                 ),
               ),
@@ -214,7 +214,7 @@ class NewsPage extends StatelessWidget {
                 Container(
                   width: 8,
                   height: 8,
-                  margin: const EdgeInsets.only(top: 6, left: 8),
+                  margin: const EdgeInsets.only(left: 8),
                   decoration: const BoxDecoration(
                     color: AppColors.red,
                     shape: BoxShape.circle,
@@ -227,69 +227,18 @@ class NewsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMentorshipActions(
-    NotificationModel notification,
-    NotificationsController controller,
-    BuildContext context,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => controller.rejectMentorshipRequest(
-                notification.id,
-                notification.actionId!,
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.red),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text(
-                'Decline',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.red,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => controller.acceptMentorshipRequest(
-                notification.id,
-                notification.actionId!,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.blue,
-                foregroundColor: AppColors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text(
-                'Accept',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showNotificationDetail(
     BuildContext context,
     NotificationModel notification,
     NotificationsController controller,
   ) {
+    final isMentorshipRequest = notification.actionType == 'mentorship_request' &&
+        notification.actionId != null;
+
+    final meta = notification.metadata;
+    final studentBio = meta?['student_bio'] as String? ?? '';
+    final hasStudentBio = isMentorshipRequest && studentBio.isNotEmpty;
+
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -300,6 +249,7 @@ class NewsPage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -338,7 +288,7 @@ class NewsPage extends StatelessWidget {
                     height: 1.6,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Text(
                   notification.formattedTimestamp,
                   style: AppTextStyles.caption.copyWith(
@@ -346,19 +296,115 @@ class NewsPage extends StatelessWidget {
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Get.back(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    foregroundColor: AppColors.white,
-                    minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+
+                // ── Student bio (mentorship requests only) ───────────────
+                if (hasStudentBio) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.blue.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline,
+                                color: AppColors.blue, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'About the Student',
+                              style: AppTextStyles.body.copyWith(
+                                color: AppColors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          studentBio,
+                          style: AppTextStyles.body.copyWith(
+                            color: Colors.grey[700],
+                            fontSize: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: const Text('Close'),
-                ),
+                ],
+
+                const SizedBox(height: 24),
+                // Action buttons
+                if (isMentorshipRequest) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Get.back();
+                            controller.rejectMentorshipRequest(
+                              notification.id,
+                              notification.actionId!,
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.red),
+                            minimumSize: const Size(0, 46),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text('Decline',
+                              style: AppTextStyles.body
+                                  .copyWith(color: AppColors.red)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Get.back();
+                            controller.acceptMentorshipRequest(
+                              notification.id,
+                              notification.actionId!,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.blue,
+                            foregroundColor: AppColors.white,
+                            minimumSize: const Size(0, 46),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text('Accept',
+                              style: AppTextStyles.body
+                                  .copyWith(color: AppColors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  ElevatedButton(
+                    onPressed: () => Get.back(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.blue,
+                      foregroundColor: AppColors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Close'),
+                  ),
+                ],
               ],
             ),
           ),

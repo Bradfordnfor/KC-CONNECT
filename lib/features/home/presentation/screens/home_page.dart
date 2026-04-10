@@ -7,6 +7,7 @@ import 'package:kc_connect/core/controllers/navigation_controller.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/core/widgets/error_widget.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/home/controllers/home_controller.dart';
 
 class HomePage extends StatelessWidget {
@@ -51,8 +52,6 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 24),
                 _buildRecentResourcesSection(controller, navController),
                 const SizedBox(height: 24),
-                _buildFeaturedAlumniSection(controller, navController),
-                const SizedBox(height: 24),
                 _buildActivitySection(controller),
               ],
             ),
@@ -72,7 +71,7 @@ class HomePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.red.withOpacity(0.3),
+            color: AppColors.red.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -99,7 +98,7 @@ class HomePage extends StatelessWidget {
                     Text(
                       controller.getMotivationalMessage(),
                       style: AppTextStyles.body.copyWith(
-                        color: AppColors.white.withOpacity(0.9),
+                        color: AppColors.white.withValues(alpha: 0.9),
                         fontSize: 14,
                       ),
                     ),
@@ -110,7 +109,7 @@ class HomePage extends StatelessWidget {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: AppColors.white.withOpacity(0.2),
+                  color: AppColors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -126,7 +125,7 @@ class HomePage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.white.withOpacity(0.2),
+              color: AppColors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -150,11 +149,14 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // Stats Cards - FIXED: Uses bottom nav index
+  // Stats Cards
   Widget _buildStatsCards(
     HomeController controller,
     NavigationController navController,
   ) {
+    final role = Get.find<AuthController>().currentUser?['role'] as String? ?? 'student';
+    final isStudent = role == 'student';
+
     return Container(
       height: 125,
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -166,7 +168,7 @@ class HomePage extends StatelessWidget {
               label: 'Events',
               value: controller.getStat('events').toString(),
               color: AppColors.blue,
-              onTap: () => navController.changePage(3), // Index 3 = Events
+              onTap: () => navController.changePage(3),
             ),
           ),
           const SizedBox(width: 12),
@@ -176,21 +178,28 @@ class HomePage extends StatelessWidget {
               label: 'Resources',
               value: controller.getStat('resources').toString(),
               color: AppColors.deepRed,
-              onTap: () => navController.changePage(1), // Index 1 = Resources
+              onTap: () => navController.changePage(1),
             ),
           ),
           const SizedBox(width: 12),
+          // Students see Alumni count → alumni page
+          // Staff / Alumni see active pinned messages → chat page
           Expanded(
-            child: _buildStatCard(
-              icon: Icons.people,
-              label: 'Alumni',
-              value: controller.getStat('alumni').toString(),
-              color: AppColors.blue,
-              onTap: () {
-                // Alumni is not in bottom nav, so use Get.toNamed
-                Get.toNamed('/alumni');
-              },
-            ),
+            child: isStudent
+                ? _buildStatCard(
+                    icon: Icons.people,
+                    label: 'Alumni',
+                    value: controller.getStat('alumni').toString(),
+                    color: AppColors.blue,
+                    onTap: () => Get.toNamed('/alumni'),
+                  )
+                : _buildStatCard(
+                    icon: Icons.push_pin,
+                    label: 'Pinned',
+                    value: controller.getStat('pinnedMessages').toString(),
+                    color: Colors.amber[700]!,
+                    onTap: () => navController.changePage(2), // Learn/Chat
+                  ),
           ),
         ],
       ),
@@ -213,7 +222,7 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -337,8 +346,10 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // Quick Actions Grid - FIXED: Uses bottom nav index
   Widget _buildQuickActionsGrid(NavigationController navController) {
+    final role = Get.find<AuthController>().currentUser?['role'] as String? ?? 'student';
+    final isStudent = role == 'student';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -362,7 +373,7 @@ class HomePage extends StatelessWidget {
                   icon: Icons.event_available,
                   label: 'Browse Events',
                   color: AppColors.blue,
-                  onTap: () => navController.changePage(3), // Index 3 = Events
+                  onTap: () => navController.changePage(3),
                 ),
               ),
               const SizedBox(width: 12),
@@ -371,8 +382,7 @@ class HomePage extends StatelessWidget {
                   icon: Icons.menu_book,
                   label: 'Resources',
                   color: AppColors.deepRed,
-                  onTap: () =>
-                      navController.changePage(1), // Index 1 = Resources
+                  onTap: () => navController.changePage(1),
                 ),
               ),
             ],
@@ -384,12 +394,19 @@ class HomePage extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.people_outline,
-                  label: 'Find Mentors',
-                  color: AppColors.blue,
-                  onTap: () => Get.toNamed('/alumni'), // Not in bottom nav
-                ),
+                child: isStudent
+                    ? _buildQuickActionCard(
+                        icon: Icons.people_outline,
+                        label: 'Find Mentors',
+                        color: AppColors.blue,
+                        onTap: () => Get.toNamed('/alumni'),
+                      )
+                    : _buildQuickActionCard(
+                        icon: Icons.forum_outlined,
+                        label: 'Help Students',
+                        color: AppColors.blue,
+                        onTap: () => navController.changePage(2), // Learn/Chat page
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -397,7 +414,7 @@ class HomePage extends StatelessWidget {
                   icon: Icons.shopping_bag_outlined,
                   label: 'K-Store',
                   color: AppColors.deepRed,
-                  onTap: () => navController.changePage(4), // Index 4 = Store
+                  onTap: () => navController.changePage(4),
                 ),
               ),
             ],
@@ -422,7 +439,7 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -503,7 +520,7 @@ class HomePage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -557,114 +574,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  // Featured Alumni Section
-  Widget _buildFeaturedAlumniSection(
-    HomeController controller,
-    NavigationController navController,
-  ) {
-    if (controller.featuredAlumni.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Connect with Alumni',
-                style: AppTextStyles.subHeading.copyWith(
-                  color: AppColors.blue,
-                  fontSize: 18,
-                ),
-              ),
-              TextButton(
-                onPressed: () => Get.toNamed('/alumni'), // Not in bottom nav
-                child: Text(
-                  'See All',
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.blue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 135,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: controller.featuredAlumni.take(3).length,
-            itemBuilder: (context, index) {
-              final alumni = controller.featuredAlumni[index];
-              return Container(
-                width: 160,
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.gradientColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        color: AppColors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      alumni.name,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      alumni.role,
-                      style: AppTextStyles.caption.copyWith(
-                        color: Colors.grey[600],
-                        fontSize: 10,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   // Activity Section
   Widget _buildActivitySection(HomeController controller) {
     return Container(
@@ -675,7 +584,7 @@ class HomePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -736,7 +645,7 @@ class HomePage extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 20),

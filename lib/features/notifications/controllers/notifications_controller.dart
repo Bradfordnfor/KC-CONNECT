@@ -202,10 +202,88 @@ class NotificationsController extends GetxController {
     }
   }
 
+  // ─── OTP approval actions (admin only) ──────────────────────────────────
+
+  Future<void> approveSignup(String notificationId, String signupId) async {
+    try {
+      // Use a DB RPC (SECURITY DEFINER) so this works regardless of edge
+      // function deployment state or RLS policies on pending_signups.
+      final result = await Supabase.instance.client
+          .rpc('approve_signup', params: {'p_signup_id': signupId});
+
+      final data = result as Map<String, dynamic>?;
+      if (data == null || data['success'] != true) {
+        AppSnackbar.error('Error', 'Failed to approve signup: ${data?['error'] ?? 'unknown'}');
+        return;
+      }
+
+      // Non-fatal: send OTP email. If Resend key isn't set the approval still
+      // succeeds — admin can share the OTP from the notify-admin-signup email.
+      try {
+        await Supabase.instance.client.functions.invoke('send-otp-email', body: {
+          'email': data['email'],
+          'name': data['name'],
+          'otp': data['otp'],
+          'type': 'otp',
+        });
+      } catch (_) {}
+
+      await _markOTPHandled(notificationId);
+      AppSnackbar.success('Approved', 'OTP sent to the applicant\'s email.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to approve signup.');
+    }
+  }
+
+  Future<void> rejectSignupFromNotification(
+      String notificationId, String signupId, String reason) async {
+    try {
+      final meta = _allNotifications
+          .firstWhereOrNull((n) => n.id == notificationId)
+          ?.metadata;
+
+      await Supabase.instance.client
+          .from('pending_signups')
+          .update({'is_active': false}).eq('id', signupId);
+
+      if (meta != null) {
+        await Supabase.instance.client.functions.invoke('send-otp-email', body: {
+          'email': meta['applicant_email'],
+          'name': meta['applicant_name'],
+          'type': 'rejection',
+          'reason': reason,
+        });
+      }
+      await _markOTPHandled(notificationId);
+      AppSnackbar.info('Rejected', 'Applicant has been notified.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to reject signup.');
+    }
+  }
+
+  /// Marks an OTP approval notification as handled — sets is_read and changes
+  /// action_type so the Approve/Reject buttons no longer render.
+  Future<void> _markOTPHandled(String notificationId) async {
+    await Supabase.instance.client
+        .from('notifications')
+        .update({
+          'is_read': true,
+          'read_at': DateTime.now().toIso8601String(),
+          'action_type': 'otp_handled',
+        })
+        .eq('id', notificationId);
+
+    final index = _allNotifications.indexWhere((n) => n.id == notificationId);
+    if (index != -1) {
+      _allNotifications[index] = _allNotifications[index]
+          .copyWith(isRead: true, actionType: 'otp_handled');
+    }
+  }
+
   Future<void> acceptMentorshipRequest(
       String notificationId, String requestId) async {
     try {
-      // Get student_id from the request
+      // Get student info from the request
       final req = await Supabase.instance.client
           .from('mentorship_requests')
           .select('student_id')
@@ -214,7 +292,7 @@ class NotificationsController extends GetxController {
 
       final studentId = req['student_id'] as String;
 
-      // Accept the request
+      // Accept this request
       await Supabase.instance.client
           .from('mentorship_requests')
           .update({'status': 'accepted'})
@@ -225,7 +303,48 @@ class NotificationsController extends GetxController {
       final mentorName = me?['full_name'] ?? 'Your mentor';
       final mentorEmail = me?['email'] ?? '';
 
-      // Notify the student
+      // Get the student's name for notifications to other alumni
+      final studentData = await Supabase.instance.client
+          .from('users')
+          .select('full_name')
+          .eq('id', studentId)
+          .single();
+      final studentName = studentData['full_name'] as String? ?? 'The student';
+
+      // Cancel all OTHER pending requests this student sent to other alumni,
+      // and notify each of those alumni so they know why.
+      final otherPending = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('id, mentor_id')
+          .eq('student_id', studentId)
+          .eq('status', 'pending')
+          .neq('id', requestId);
+
+      if ((otherPending as List).isNotEmpty) {
+        final otherIds = otherPending.map((r) => r['id'] as String).toList();
+
+        // Mark them all cancelled
+        await Supabase.instance.client
+            .from('mentorship_requests')
+            .update({'status': 'cancelled'})
+            .inFilter('id', otherIds);
+
+        // Notify each of the other alumni
+        final notifications = otherPending.map((r) => {
+          'user_id': r['mentor_id'] as String,
+          'title': 'Mentorship Request Withdrawn',
+          'message':
+              '$studentName has found a mentor and their request to you has been automatically withdrawn.',
+          'type': 'mentorship',
+          'action_type': 'mentorship_withdrawn',
+          'is_read': false,
+          'created_at': DateTime.now().toIso8601String(),
+        }).toList();
+
+        await Supabase.instance.client.from('notifications').insert(notifications);
+      }
+
+      // Notify the student that their request was accepted
       await Supabase.instance.client.from('notifications').insert({
         'user_id': studentId,
         'title': 'Mentorship Request Accepted!',
@@ -237,7 +356,7 @@ class NotificationsController extends GetxController {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      await markAsRead(notificationId);
+      await _markMentorshipHandled(notificationId);
       AppSnackbar.success('Accepted', 'Mentorship request accepted.');
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to accept request.');
@@ -273,10 +392,29 @@ class NotificationsController extends GetxController {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      await markAsRead(notificationId);
+      await _markMentorshipHandled(notificationId);
       AppSnackbar.info('Done', 'Mentorship request declined.');
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to decline request.');
+    }
+  }
+
+  /// Marks a mentorship notification as handled — sets is_read and changes
+  /// action_type so the Accept/Decline buttons no longer render in the modal.
+  Future<void> _markMentorshipHandled(String notificationId) async {
+    await Supabase.instance.client
+        .from('notifications')
+        .update({
+          'is_read': true,
+          'read_at': DateTime.now().toIso8601String(),
+          'action_type': 'mentorship_handled',
+        })
+        .eq('id', notificationId);
+
+    final index = _allNotifications.indexWhere((n) => n.id == notificationId);
+    if (index != -1) {
+      _allNotifications[index] = _allNotifications[index]
+          .copyWith(isRead: true, actionType: 'mentorship_handled');
     }
   }
 

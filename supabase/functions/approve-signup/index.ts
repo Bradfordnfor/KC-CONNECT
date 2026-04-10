@@ -30,25 +30,25 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Fetch the pending signup
+    // Fetch the pending signup — no is_active filter so old/deactivated rows
+    // can still be approved if the admin taps an older notification card.
     const { data: signup, error: fetchError } = await adminClient
       .from('pending_signups')
       .select('*')
       .eq('id', signup_id)
-      .eq('is_active', true)
       .single();
 
     if (fetchError || !signup) {
-      return new Response(JSON.stringify({ error: 'Signup not found or already processed' }), {
+      return new Response(JSON.stringify({ error: 'Signup not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Mark as admin_approved so the user can now enter the OTP
+    // Mark as approved and reactivate in case it was deactivated by a retry
     const { error: updateError } = await adminClient
       .from('pending_signups')
-      .update({ admin_approved: true })
+      .update({ admin_approved: true, is_active: true })
       .eq('id', signup_id);
 
     if (updateError) {
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
     // Send OTP to user's email
-    await adminClient.functions.invoke('send-otp-email', {
+    const emailRes = await adminClient.functions.invoke('send-otp-email', {
       body: {
         email: signup.email,
         name: signup.name,
@@ -68,11 +68,14 @@ Deno.serve(async (req) => {
       },
     });
 
+    console.log('send-otp-email result:', JSON.stringify(emailRes));
+
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
+    console.error('approve-signup error:', err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,7 +1,6 @@
 // lib/features/auth/presentation/screens/check_email_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:kc_connect/core/routes/app_routes.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -49,7 +48,7 @@ class _CheckEmailScreenState extends State<CheckEmailScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.blue),
-          onPressed: () => Get.offAllNamed(AppRoutes.login),
+          onPressed: () => Get.back(),
         ),
       ),
       body: SafeArea(
@@ -158,7 +157,7 @@ class _CheckEmailScreenState extends State<CheckEmailScreen> {
                 const SizedBox(height: 16),
 
                 TextButton(
-                  onPressed: () => Get.offAllNamed(AppRoutes.login),
+                  onPressed: () => Get.back(),
                   child: Text(
                     'Back to Login',
                     style: AppTextStyles.body.copyWith(

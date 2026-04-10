@@ -7,6 +7,7 @@ class ResourceModel {
   final String? subject;
   final String description;
   final String? fileUrl;
+  final String? fileType;
   final String? imageUrl;
   final int pages;
   final String uploadedBy;
@@ -22,6 +23,7 @@ class ResourceModel {
     this.subject,
     required this.description,
     this.fileUrl,
+    this.fileType,
     this.imageUrl,
     this.pages = 0,
     required this.uploadedBy,
@@ -75,6 +77,7 @@ class ResourceModel {
     String? subject,
     String? description,
     String? fileUrl,
+    String? fileType,
     String? imageUrl,
     int? pages,
     String? uploadedBy,
@@ -90,6 +93,7 @@ class ResourceModel {
       subject: subject ?? this.subject,
       description: description ?? this.description,
       fileUrl: fileUrl ?? this.fileUrl,
+      fileType: fileType ?? this.fileType,
       imageUrl: imageUrl ?? this.imageUrl,
       pages: pages ?? this.pages,
       uploadedBy: uploadedBy ?? this.uploadedBy,

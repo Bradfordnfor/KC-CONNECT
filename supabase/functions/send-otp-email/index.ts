@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'KC Connect <noreply@kcconnect.app>',
+            from: Deno.env.get('EMAIL_FROM') ?? 'KC Connect <onboarding@resend.dev>',
             to: [email],
             subject: 'Your KC Connect Verification Code',
             html: `
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'KC Connect <noreply@kcconnect.app>',
+            from: Deno.env.get('EMAIL_FROM') ?? 'KC Connect <onboarding@resend.dev>',
             to: [email],
             subject: 'KC Connect Signup Request Update',
             html: `

@@ -6,6 +6,7 @@ import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -338,18 +339,18 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSettingsTile(
             icon: Icons.description_outlined,
             title: 'Terms & Conditions',
-            onTap: () => AppSnackbar.info(
-              'Coming Soon',
-              'Terms & Conditions will be available soon',
+            onTap: () => launchUrl(
+              Uri.parse('https://bradfordnfor.github.io/kc-connect-privacy/terms'),
+              mode: LaunchMode.externalApplication,
             ),
           ),
           const Divider(height: 1, indent: 60),
           _buildSettingsTile(
             icon: Icons.privacy_tip_outlined,
             title: 'Privacy Policy',
-            onTap: () => AppSnackbar.info(
-              'Coming Soon',
-              'Privacy Policy will be available soon',
+            onTap: () => launchUrl(
+              Uri.parse('https://bradfordnfor.github.io/kc-connect-privacy'),
+              mode: LaunchMode.externalApplication,
             ),
           ),
         ],

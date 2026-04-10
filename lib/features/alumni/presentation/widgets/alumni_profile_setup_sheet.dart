@@ -26,6 +26,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
   final _fieldController = TextEditingController();      // card "role" line  → current_position
   final _institutionController = TextEditingController(); // card "school" line → school
   final _expertiseController = TextEditingController();  // for search/filter
+  final _graduationYearController = TextEditingController(); // optional
   final _maxMenteesController = TextEditingController(text: '3');
 
   bool _availableForMentorship = true;
@@ -49,6 +50,11 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
     _availableForMentorship = user['available_for_mentorship'] ?? true;
     _maxMenteesController.text = (user['max_mentees'] ?? 3).toString();
 
+    final gradYear = user['graduation_year'];
+    if (gradYear != null) {
+      _graduationYearController.text = gradYear.toString();
+    }
+
     final expertise = user['expertise'];
     if (expertise is List) {
       _expertiseController.text = expertise.join(', ');
@@ -63,6 +69,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
     _fieldController.dispose();
     _institutionController.dispose();
     _expertiseController.dispose();
+    _graduationYearController.dispose();
     _maxMenteesController.dispose();
     super.dispose();
   }
@@ -82,6 +89,9 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
 
       final maxMentees = int.tryParse(_maxMenteesController.text.trim()) ?? 3;
 
+      final gradYearStr = _graduationYearController.text.trim();
+      final gradYear = gradYearStr.isEmpty ? null : int.tryParse(gradYearStr);
+
       await Supabase.instance.client.from('users').update({
         'bio': _bioController.text.trim(),
         'career': _careerController.text.trim(),
@@ -91,6 +101,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
         'available_for_mentorship': _availableForMentorship,
         'max_mentees': maxMentees,
         'expertise': expertiseList,
+        if (gradYear != null) 'graduation_year': gradYear,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', userId);
 
@@ -192,6 +203,30 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
                 decoration: _deco('e.g. ALU, Rwanda'),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Graduation Year (optional) ────────────────────────────
+              _label('Year you graduated from KC (optional)'),
+              _hint(
+                'The year you completed your final year at KC. '
+                'Leave blank if you prefer not to share. '
+                'e.g. "2021"',
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _graduationYearController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _deco('e.g. 2021'),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null; // optional
+                  final y = int.tryParse(v.trim());
+                  if (y == null || y < 1950 || y > DateTime.now().year) {
+                    return 'Enter a valid year';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 

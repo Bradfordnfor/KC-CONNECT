@@ -64,10 +64,27 @@ class _MainNavigationState extends State<MainNavigation> {
       EventsPage(),
       KstorePage(),
     ];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _setupUserChecks());
+  }
+
+  /// Waits for the user profile to be loaded (the DB trigger may commit a few
+  /// hundred ms after auth), then runs the subscription gate and alumni prompt.
+  void _setupUserChecks() {
+    final auth = Get.find<AuthController>();
+    if (auth.currentUser != null) {
       _checkSubscription();
       _scheduleAlumniProfileCheck();
-    });
+    } else {
+      // Profile not yet available — listen reactively and fire once it arrives.
+      late Worker worker;
+      worker = ever(auth.currentUserRx, (user) {
+        if (user != null && mounted) {
+          _checkSubscription();
+          _scheduleAlumniProfileCheck();
+          worker.dispose();
+        }
+      });
+    }
   }
 
   void _scheduleAlumniProfileCheck() {

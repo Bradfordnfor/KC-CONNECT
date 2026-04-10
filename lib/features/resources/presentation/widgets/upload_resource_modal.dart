@@ -37,7 +37,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
     'Self Development',
   ];
 
-  final _categories = ['O/L', 'A/L', 'Other'];
+  final _categories = ['O/L', 'A/L', 'Other Books'];
 
   @override
   Widget build(BuildContext context) {
@@ -209,22 +209,34 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
           _pickedFile!.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
       final storagePath = '$userId/${timestamp}_$safeName';
 
+      final fileExt = _pickedFile!.name.split('.').last.toLowerCase();
+      final contentType = switch (fileExt) {
+        'pdf'  => 'application/pdf',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc'  => 'application/msword',
+        _      => 'application/octet-stream',
+      };
+
       await Supabase.instance.client.storage
           .from('resources')
           .uploadBinary(
             storagePath,
             _pickedFile!.bytes!,
-            fileOptions: const FileOptions(upsert: false),
+            fileOptions: FileOptions(upsert: false, contentType: contentType),
           );
 
-      // Store the storage path (not a public URL) — signed URLs are
-      // generated at download time because the bucket is private.
+      // Bucket is public — store the permanent public URL so it can be used
+      // directly without any signed-URL generation at open time.
+      final publicUrl = Supabase.instance.client.storage
+          .from('resources')
+          .getPublicUrl(storagePath);
+
       await Supabase.instance.client.from('resources').insert({
         'title': _titleController.text.trim(),
         'subject': _subject,
         'category': _category,
         'description': _descriptionController.text.trim(),
-        'file_url': storagePath,
+        'file_url': publicUrl,
         'file_name': _pickedFile!.name,
         'file_type': _pickedFile!.name.split('.').last.toLowerCase(),
         'file_size': _pickedFile!.size,
@@ -239,7 +251,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
       AppSnackbar.success('Uploaded', 'Resource uploaded successfully');
     } catch (e) {
       debugPrint('Upload resource error: $e');
-      AppSnackbar.error('Error', 'Failed to upload resource');
+      AppSnackbar.error('Upload Failed', e.toString());
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }

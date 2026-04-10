@@ -315,20 +315,18 @@ class AlumniDetailPage extends StatelessWidget {
   }
 
   Widget _buildRequestButton() {
-    // Use Get.put instead of Get.find to ensure controller exists
     final controller = Get.put(AlumniController());
     final alumniId = alumniData['id'] ?? '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Obx(() {
-        final hasPendingRequest = controller.hasMentorshipRequest(alumniId);
+        final disabled = controller.isMentorshipButtonDisabled(alumniId);
+        final label = controller.mentorshipButtonLabel(alumniId);
 
         return PrimaryButton(
-          label: hasPendingRequest ? 'Request Pending' : 'Request Mentorship',
-          onPressed: hasPendingRequest
-              ? null
-              : () => controller.requestMentorship(alumniId),
+          label: label,
+          onPressed: disabled ? null : () => controller.requestMentorship(alumniId),
           expanded: true,
           height: 50,
         );

@@ -133,20 +133,32 @@ class EventsController extends GetxController {
         return;
       }
 
-      await Future.wait([
-        Supabase.instance.client.from('event_registrations').insert({
-          'event_id': eventId,
-          'user_id': userId,
-          'status': 'registered',
-          'payment_status':
-              event.isPaid ? 'pending' : 'not_required',
-          'registration_date': DateTime.now().toIso8601String(),
-        }),
-        Supabase.instance.client
+      final now = DateTime.now().toIso8601String();
+      await Supabase.instance.client.from('event_registrations').insert({
+        'event_id': eventId,
+        'user_id': userId,
+        'status': 'registered',
+        'payment_status': event.isPaid ? 'pending' : 'not_required',
+        'registration_date': now,
+        'created_at': now,
+        'updated_at': now,
+      });
+
+      // Use RPC (SECURITY DEFINER) so the events table RLS doesn't block the
+      // count increment — same approach as the paid registration flow.
+      await Supabase.instance.client
+          .rpc('increment_event_registrations', params: {'event_id': eventId})
+          .catchError((_) async {
+        final ev = await Supabase.instance.client
             .from('events')
-            .update({'current_registrations': event.registeredCount + 1})
-            .eq('id', eventId),
-      ]);
+            .select('current_registrations')
+            .eq('id', eventId)
+            .single();
+        final current = (ev['current_registrations'] as int? ?? 0) + 1;
+        await Supabase.instance.client
+            .from('events')
+            .update({'current_registrations': current}).eq('id', eventId);
+      });
 
       _registeredEventIds.add(eventId);
       final index = _allEvents.indexWhere((e) => e.id == eventId);

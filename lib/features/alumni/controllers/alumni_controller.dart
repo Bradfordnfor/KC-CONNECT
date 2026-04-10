@@ -14,9 +14,12 @@ class AlumniController extends GetxController {
   final _showOnlyAvailable = false.obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
-  final _mentorshipRequests = <String>[].obs; // mentor IDs with pending requests
   final _likedAlumni = <String>[].obs;
   final _alumniLikeCounts = <String, int>{}.obs;
+
+  // alumniId → status: 'pending' | 'accepted' | 'declined' | 'cancelled'
+  // Only alumni the current student has interacted with are present.
+  final _mentorshipStatuses = <String, String>{}.obs;
 
   List<AlumniModel> get allAlumni => _allAlumni;
   List<AlumniModel> get filteredAlumni => _filteredAlumni;
@@ -41,7 +44,7 @@ class AlumniController extends GetxController {
       await Future.wait([
         _fetchAlumni(),
         loadLikedAlumni(),
-        _loadPendingMentorshipRequests(),
+        _loadMentorshipStatuses(),
       ]);
 
       _isLoading.value = false;
@@ -87,21 +90,26 @@ class AlumniController extends GetxController {
     }
   }
 
-  Future<void> _loadPendingMentorshipRequests() async {
+  /// Loads ALL mentorship request statuses for the current student so the button
+  /// correctly reflects pending / accepted / declined states for every alumni.
+  Future<void> _loadMentorshipStatuses() async {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
 
       final response = await Supabase.instance.client
           .from('mentorship_requests')
-          .select('mentor_id')
+          .select('mentor_id, status')
           .eq('student_id', userId)
-          .eq('status', 'pending');
+          .inFilter('status', ['pending', 'accepted', 'declined']);
 
-      _mentorshipRequests.value =
-          (response as List).map((r) => r['mentor_id'] as String).toList();
+      final statuses = <String, String>{};
+      for (final row in response as List) {
+        statuses[row['mentor_id'] as String] = row['status'] as String;
+      }
+      _mentorshipStatuses.value = statuses;
     } catch (e) {
-      debugPrint('Error loading mentorship requests: $e');
+      debugPrint('Error loading mentorship statuses: $e');
     }
   }
 
@@ -128,8 +136,29 @@ class AlumniController extends GetxController {
   }
 
   bool isAlumniLiked(String alumniId) => _likedAlumni.contains(alumniId);
-
   int getAlumniLikeCount(String alumniId) => _alumniLikeCounts[alumniId] ?? 0;
+
+  /// Returns the current request status for the given alumni, or null if
+  /// no request has been sent.
+  String? mentorshipStatus(String alumniId) => _mentorshipStatuses[alumniId];
+
+  /// Whether the "Request Mentorship" button should be disabled.
+  /// Disabled when: pending, accepted, or declined.
+  bool isMentorshipButtonDisabled(String alumniId) =>
+      _mentorshipStatuses.containsKey(alumniId);
+
+  String mentorshipButtonLabel(String alumniId) {
+    switch (_mentorshipStatuses[alumniId]) {
+      case 'pending':
+        return 'Request Pending';
+      case 'accepted':
+        return 'Mentorship Active';
+      case 'declined':
+        return 'Request Declined';
+      default:
+        return 'Request Mentorship';
+    }
+  }
 
   Future<void> toggleLike(String alumniId) async {
     try {
@@ -250,13 +279,7 @@ class AlumniController extends GetxController {
     try {
       final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
 
-      if (_mentorshipRequests.contains(alumniId)) {
-        AppSnackbar.info(
-          'Already Requested',
-          'You have already sent a mentorship request to ${alumni.name}',
-        );
-        return;
-      }
+      if (isMentorshipButtonDisabled(alumniId)) return;
 
       if (!alumni.isAvailableForMentorship) {
         AppSnackbar.warning(
@@ -301,9 +324,11 @@ class AlumniController extends GetxController {
 
       final requestId = response['id'] as String;
 
-      // Notify the alumni
-      final studentName =
-          Get.find<AuthController>().currentUser?['full_name'] ?? 'A student';
+      // Notify the alumni — include student bio for informed decision-making
+      final me = Get.find<AuthController>().currentUser;
+      final studentName = me?['full_name'] as String? ?? 'A student';
+      final studentBio = (me?['bio'] as String? ?? '').trim();
+
       await Supabase.instance.client.from('notifications').insert({
         'user_id': alumniId,
         'title': 'New Mentorship Request',
@@ -313,9 +338,15 @@ class AlumniController extends GetxController {
         'action_id': requestId,
         'is_read': false,
         'created_at': DateTime.now().toIso8601String(),
+        'metadata': {
+          'student_name': studentName,
+          if (studentBio.isNotEmpty) 'student_bio': studentBio,
+        },
       });
 
-      _mentorshipRequests.add(alumniId);
+      // Update local state immediately so button disables without a reload
+      _mentorshipStatuses[alumniId] = 'pending';
+      _mentorshipStatuses.refresh();
 
       AppSnackbar.success(
         'Request Sent',
@@ -325,33 +356,6 @@ class AlumniController extends GetxController {
       AppSnackbar.error('Error', 'Failed to send mentorship request');
     }
   }
-
-  Future<void> cancelMentorshipRequest(String alumniId) async {
-    try {
-      final alumni = _allAlumni.firstWhere((a) => a.id == alumniId);
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      await Supabase.instance.client
-          .from('mentorship_requests')
-          .update({'status': 'cancelled'})
-          .eq('mentor_id', alumniId)
-          .eq('student_id', userId)
-          .eq('status', 'pending');
-
-      _mentorshipRequests.remove(alumniId);
-
-      AppSnackbar.info(
-        'Request Cancelled',
-        'Your mentorship request to ${alumni.name} has been cancelled',
-      );
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to cancel mentorship request');
-    }
-  }
-
-  bool hasMentorshipRequest(String alumniId) =>
-      _mentorshipRequests.contains(alumniId);
 
   List<AlumniModel> getAlumniByExpertise(String expertise) {
     return _allAlumni

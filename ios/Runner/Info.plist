@@ -56,5 +56,29 @@
 			</array>
 		</dict>
 	</array>
+
+	<!-- Camera — profile photo upload, chat image capture -->
+	<key>NSCameraUsageDescription</key>
+	<string>KC Connect uses your camera to take photos for your profile and to share images in chat.</string>
+
+	<!-- Photo library — profile photo selection, chat image sharing, resource uploads -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>KC Connect needs access to your photo library so you can select images for your profile and share them in chat.</string>
+
+	<!-- Photo library add — saving downloaded resources/images -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>KC Connect may save images to your photo library when you download shared content.</string>
+
+	<!-- Microphone — required by image_picker on iOS even if you only capture photos -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>KC Connect requires microphone access when capturing photos or videos through the camera.</string>
+
+	<!-- Local network — Supabase realtime and in-app connections on local Wi-Fi -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>KC Connect uses your local network to communicate with our servers for real-time chat and notifications.</string>
+
+	<!-- File access — PDF and document uploads/downloads -->
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>KC Connect needs access to your files to upload study resources and documents.</string>
 </dict>
 </plist>

@@ -1,8 +1,10 @@
 // lib/features/admin/presentation/screens/admin_users_screen.dart
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminUsersPage extends StatefulWidget {
@@ -30,12 +32,17 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     super.dispose();
   }
 
+  bool get _isSuperAdmin {
+    final me = Get.find<AuthController>().currentUser;
+    return me?['is_super_admin'] == true;
+  }
+
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
     try {
       final response = await Supabase.instance.client
           .from('users')
-          .select('id, full_name, email, role, status, created_at')
+          .select('id, full_name, email, role, status, is_super_admin, created_at')
           .neq('status', 'inactive')
           .order('created_at', ascending: false);
 
@@ -64,6 +71,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   }
 
   Future<void> _suspendUser(Map<String, dynamic> user) async {
+    // Double-check: only super admin can suspend admins
+    if ((user['role'] as String? ?? '') == 'admin' && !_isSuperAdmin) {
+      AppSnackbar.error('Unauthorized', 'Only the super admin can suspend other admins.');
+      return;
+    }
     try {
       await Supabase.instance.client
           .from('users')
@@ -193,11 +205,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.block, color: AppColors.error, size: 20),
-            tooltip: 'Suspend user',
-            onPressed: () => _confirmSuspend(user),
-          ),
+          // Only super admin can suspend other admins
+          if (!(role == 'admin' && !_isSuperAdmin))
+            IconButton(
+              icon: const Icon(Icons.block, color: AppColors.error, size: 20),
+              tooltip: 'Suspend user',
+              onPressed: () => _confirmSuspend(user),
+            ),
         ],
       ),
     );

@@ -8,10 +8,62 @@ import 'package:kc_connect/core/models/message_model.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// ─── Pinned message model ──────────────────────────────────────────────────
+
+class PinnedChatMessage {
+  final String id;
+  final String messageId;
+  final String room; // 'grade_10' or 'grade_12'
+  final String pinnedBy;
+  final String pinnerName;
+  final DateTime pinnedUntil;
+  final String messageContent;
+  final String messageSenderName;
+  final DateTime createdAt;
+
+  PinnedChatMessage({
+    required this.id,
+    required this.messageId,
+    required this.room,
+    required this.pinnedBy,
+    required this.pinnerName,
+    required this.pinnedUntil,
+    required this.messageContent,
+    required this.messageSenderName,
+    required this.createdAt,
+  });
+
+  String get timeRemainingLabel {
+    final diff = pinnedUntil.difference(DateTime.now());
+    if (diff.inDays >= 1) return '${diff.inDays}d left';
+    if (diff.inHours >= 1) return '${diff.inHours}h left';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes}m left';
+    return 'Expiring';
+  }
+
+  factory PinnedChatMessage.fromRow(Map<String, dynamic> row) {
+    return PinnedChatMessage(
+      id: row['id'] as String,
+      messageId: row['message_id'] as String,
+      room: row['room'] as String,
+      pinnedBy: row['pinned_by'] as String,
+      pinnerName: row['pinner_name'] as String? ?? '',
+      pinnedUntil: DateTime.parse(row['pinned_until'] as String),
+      messageContent: row['message_content'] as String? ?? '',
+      messageSenderName: row['message_sender_name'] as String? ?? '',
+      createdAt: DateTime.parse(row['created_at'] as String),
+    );
+  }
+}
+
+// ─── Controller ────────────────────────────────────────────────────────────
+
 class LearnController extends GetxController {
   // Reactive state
   final _grade10Messages = <MessageModel>[].obs;
   final _grade12Messages = <MessageModel>[].obs;
+  final _grade10Pinned = <PinnedChatMessage>[].obs;
+  final _grade12Pinned = <PinnedChatMessage>[].obs;
   final _currentTabIndex = 0.obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
@@ -30,7 +82,7 @@ class LearnController extends GetxController {
   String _fromDbRoom(String dbRoom) =>
       dbRoom == 'grade_10' ? 'grade10' : 'grade12';
 
-  // Getters
+  // Getters — messages
   List<MessageModel> get grade10Messages => _grade10Messages.toList();
   List<MessageModel> get grade12Messages => _grade12Messages.toList();
   int get currentTabIndex => _currentTabIndex.value;
@@ -38,21 +90,30 @@ class LearnController extends GetxController {
   bool get isLoading => _isLoading.value;
   String get errorMessage => _errorMessage.value;
   MessageModel? get replyingTo => _replyingTo.value;
+  String? get currentUserId => Supabase.instance.client.auth.currentUser?.id;
 
-  List<MessageModel> get currentMessages {
-    return _currentTabIndex.value == 0 ? _grade10Messages : _grade12Messages;
-  }
+  List<MessageModel> get currentMessages =>
+      _currentTabIndex.value == 0 ? _grade10Messages : _grade12Messages;
+
+  // Getters — pinned
+  List<PinnedChatMessage> get grade10Pinned => _grade10Pinned.toList();
+  List<PinnedChatMessage> get grade12Pinned => _grade12Pinned.toList();
+  List<PinnedChatMessage> get currentPinned =>
+      _currentTabIndex.value == 0 ? _grade10Pinned : _grade12Pinned;
+
+  List<PinnedChatMessage> pinnedForRoom(String room) =>
+      room == 'grade10' ? _grade10Pinned.toList() : _grade12Pinned.toList();
 
   @override
   void onInit() {
     super.onInit();
     loadMessages();
-    _subscribeToMessages();
+    loadPinnedMessages();
+    _subscribeToRealtime();
   }
 
   @override
   void onClose() {
-    messageController.dispose();
     _channel?.unsubscribe();
     super.onClose();
   }
@@ -62,14 +123,14 @@ class LearnController extends GetxController {
   void setReplyTo(MessageModel message) => _replyingTo.value = message;
   void clearReply() => _replyingTo.value = null;
 
-  // ─── Load ──────────────────────────────────────────────────────────────────
+  // ─── Load messages ─────────────────────────────────────────────────────────
 
   Future<void> loadMessages() async {
     try {
       _isLoading.value = true;
       _errorMessage.value = '';
 
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      final uid = currentUserId;
 
       final data = await Supabase.instance.client
           .from('messages')
@@ -87,7 +148,7 @@ class LearnController extends GetxController {
       final grade12 = <MessageModel>[];
 
       for (final row in data) {
-        final msg = _fromRow(row, currentUserId);
+        final msg = _fromRow(row, uid);
         if (row['room'] == 'grade_10') {
           grade10.add(msg);
         } else {
@@ -104,7 +165,7 @@ class LearnController extends GetxController {
     }
   }
 
-  MessageModel _fromRow(Map<String, dynamic> row, String? currentUserId) {
+  MessageModel _fromRow(Map<String, dynamic> row, String? uid) {
     final senderId = row['sender_id'] as String? ?? '';
     return MessageModel(
       id: row['id'] as String,
@@ -112,7 +173,7 @@ class LearnController extends GetxController {
       senderName: row['sender_name'] as String? ?? 'Unknown',
       content: row['content'] as String? ?? '',
       timestamp: DateTime.parse(row['created_at'] as String),
-      isMe: senderId == currentUserId,
+      isMe: senderId == uid,
       chatRoom: _fromDbRoom(row['room'] as String? ?? 'grade_10'),
       status: MessageStatus.sent,
       messageType: row['message_type'] as String? ?? 'text',
@@ -125,13 +186,113 @@ class LearnController extends GetxController {
     );
   }
 
+  // ─── Load pinned messages ──────────────────────────────────────────────────
+
+  Future<void> loadPinnedMessages() async {
+    try {
+      final now = DateTime.now().toIso8601String();
+      final data = await Supabase.instance.client
+          .from('pinned_messages')
+          .select()
+          .inFilter('room', ['grade_10', 'grade_12'])
+          .gt('pinned_until', now)
+          .order('created_at', ascending: true);
+
+      final g10 = <PinnedChatMessage>[];
+      final g12 = <PinnedChatMessage>[];
+      for (final row in data) {
+        final p = PinnedChatMessage.fromRow(row);
+        if (row['room'] == 'grade_10') {
+          g10.add(p);
+        } else {
+          g12.add(p);
+        }
+      }
+      _grade10Pinned.value = g10;
+      _grade12Pinned.value = g12;
+    } catch (e) {
+      debugPrint('Load pinned messages error: $e');
+    }
+  }
+
+  // ─── Pin / unpin ───────────────────────────────────────────────────────────
+
+  /// Returns true on success, false if the room already has 2 pins.
+  Future<bool> pinMessage(MessageModel message, int hours) async {
+    final room = currentRoom;
+    final dbRoom = _toDbRoom(room);
+    final pinned = pinnedForRoom(room);
+
+    if (pinned.length >= 2) return false;
+
+    final uid = currentUserId;
+    if (uid == null) return false;
+
+    final auth = Get.find<AuthController>();
+    final pinnerName =
+        auth.currentUser?['full_name'] as String? ?? 'Unknown';
+
+    try {
+      final pinnedUntil =
+          DateTime.now().add(Duration(hours: hours)).toIso8601String();
+      final content = message.content.isNotEmpty
+          ? message.content
+          : message.isImage
+              ? '📷 Image'
+              : '📎 File';
+
+      final result = await Supabase.instance.client
+          .from('pinned_messages')
+          .insert({
+            'message_id': message.id,
+            'room': dbRoom,
+            'pinned_by': uid,
+            'pinner_name': pinnerName,
+            'pinned_until': pinnedUntil,
+            'message_content': content,
+            'message_sender_name': message.senderName,
+          })
+          .select()
+          .single();
+
+      final newPin = PinnedChatMessage.fromRow(result);
+      if (room == 'grade10') {
+        _grade10Pinned.add(newPin);
+      } else {
+        _grade12Pinned.add(newPin);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Pin message error: $e');
+      return false;
+    }
+  }
+
+  Future<void> unpinMessage(String pinnedId) async {
+    try {
+      await Supabase.instance.client
+          .from('pinned_messages')
+          .delete()
+          .eq('id', pinnedId);
+
+      _grade10Pinned.removeWhere((p) => p.id == pinnedId);
+      _grade12Pinned.removeWhere((p) => p.id == pinnedId);
+    } catch (e) {
+      debugPrint('Unpin message error: $e');
+      Get.snackbar('Error', 'Failed to unpin message',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 2));
+    }
+  }
+
   // ─── Realtime ──────────────────────────────────────────────────────────────
 
-  void _subscribeToMessages() {
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+  void _subscribeToRealtime() {
+    final uid = currentUserId;
 
     _channel = Supabase.instance.client
-        .channel('messages_realtime')
+        .channel('learn_realtime')
+        // New messages
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -143,16 +304,49 @@ class LearnController extends GetxController {
             if (dbRoom != 'grade_10' && dbRoom != 'grade_12') return;
             if (row['is_deleted'] == true) return;
 
-            final msg = _fromRow(row, currentUserId);
+            final msg = _fromRow(row, uid);
             final room = _fromDbRoom(dbRoom);
-            final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
+            final list =
+                room == 'grade10' ? _grade10Messages : _grade12Messages;
             if (list.any((m) => m.id == msg.id)) return;
-
             if (room == 'grade10') {
               _grade10Messages.add(msg);
             } else {
               _grade12Messages.add(msg);
             }
+          },
+        )
+        // New pin
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'pinned_messages',
+          callback: (payload) {
+            final row = payload.newRecord;
+            final p = PinnedChatMessage.fromRow(row);
+            // Avoid duplicates (our own insert already updates the list)
+            final list = row['room'] == 'grade_10'
+                ? _grade10Pinned
+                : _grade12Pinned;
+            if (!list.any((x) => x.id == p.id)) {
+              if (row['room'] == 'grade_10') {
+                _grade10Pinned.add(p);
+              } else {
+                _grade12Pinned.add(p);
+              }
+            }
+          },
+        )
+        // Deleted pin
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'pinned_messages',
+          callback: (payload) {
+            final id = payload.oldRecord['id'] as String?;
+            if (id == null) return;
+            _grade10Pinned.removeWhere((p) => p.id == id);
+            _grade12Pinned.removeWhere((p) => p.id == id);
           },
         )
         .subscribe();
@@ -179,13 +373,12 @@ class LearnController extends GetxController {
 
     final room = currentRoom;
     final dbRoom = _toDbRoom(room);
-    final authController = Get.find<AuthController>();
+    final auth = Get.find<AuthController>();
     final senderName =
-        authController.currentUser?['full_name'] as String? ?? 'Unknown';
+        auth.currentUser?['full_name'] as String? ?? 'Unknown';
     final senderRole =
-        authController.currentUser?['role'] as String? ?? 'student';
+        auth.currentUser?['role'] as String? ?? 'student';
 
-    // Capture reply before clearing
     final reply = _replyingTo.value;
     clearReply();
 
@@ -202,7 +395,11 @@ class LearnController extends GetxController {
       replyToId: reply?.id,
       replyToContent: reply?.content.isNotEmpty == true
           ? reply!.content
-          : (reply?.isImage == true ? '📷 Image' : reply != null ? '📎 File' : null),
+          : (reply?.isImage == true
+              ? '📷 Image'
+              : reply != null
+                  ? '📎 File'
+                  : null),
       replyToSenderName: reply?.senderName,
     );
 
@@ -239,13 +436,14 @@ class LearnController extends GetxController {
           .select('id, created_at')
           .single();
 
-      final sent = optimistic.copyWith(
-        id: result['id'] as String,
-        timestamp: DateTime.parse(result['created_at'] as String),
-        status: MessageStatus.sent,
-      );
-
-      _replaceOptimistic(room, tempId, sent);
+      _replaceOptimistic(
+          room,
+          tempId,
+          optimistic.copyWith(
+            id: result['id'] as String,
+            timestamp: DateTime.parse(result['created_at'] as String),
+            status: MessageStatus.sent,
+          ));
     } catch (e) {
       _replaceOptimistic(
           room, tempId, optimistic.copyWith(status: MessageStatus.failed));
@@ -305,11 +503,11 @@ class LearnController extends GetxController {
 
     final room = currentRoom;
     final dbRoom = _toDbRoom(room);
-    final authController = Get.find<AuthController>();
+    final auth = Get.find<AuthController>();
     final senderName =
-        authController.currentUser?['full_name'] as String? ?? 'Unknown';
+        auth.currentUser?['full_name'] as String? ?? 'Unknown';
     final senderRole =
-        authController.currentUser?['role'] as String? ?? 'student';
+        auth.currentUser?['role'] as String? ?? 'student';
 
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final optimistic = MessageModel(
@@ -345,30 +543,35 @@ class LearnController extends GetxController {
           .from('chat-attachments')
           .getPublicUrl(storagePath);
 
-      final result = await supabase.from('messages').insert({
-        'content': '',
-        'room': dbRoom,
-        'sender_id': currentUser.id,
-        'sender_name': senderName,
-        'sender_role': senderRole,
-        'is_deleted': false,
-        'is_edited': false,
-        'is_flagged': false,
-        'is_pinned': false,
-        'message_type': messageType,
-        'file_url': fileUrl,
-        'file_name': fileName,
-        'file_size': fileSize,
-      }).select('id, created_at').single();
+      final result = await supabase
+          .from('messages')
+          .insert({
+            'content': '',
+            'room': dbRoom,
+            'sender_id': currentUser.id,
+            'sender_name': senderName,
+            'sender_role': senderRole,
+            'is_deleted': false,
+            'is_edited': false,
+            'is_flagged': false,
+            'is_pinned': false,
+            'message_type': messageType,
+            'file_url': fileUrl,
+            'file_name': fileName,
+            'file_size': fileSize,
+          })
+          .select('id, created_at')
+          .single();
 
-      final sent = optimistic.copyWith(
-        id: result['id'] as String,
-        timestamp: DateTime.parse(result['created_at'] as String),
-        status: MessageStatus.sent,
-        fileUrl: fileUrl,
-      );
-
-      _replaceOptimistic(room, tempId, sent);
+      _replaceOptimistic(
+          room,
+          tempId,
+          optimistic.copyWith(
+            id: result['id'] as String,
+            timestamp: DateTime.parse(result['created_at'] as String),
+            status: MessageStatus.sent,
+            fileUrl: fileUrl,
+          ));
     } catch (e) {
       _replaceOptimistic(
           room, tempId, optimistic.copyWith(status: MessageStatus.failed));
@@ -414,8 +617,10 @@ class LearnController extends GetxController {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  void _replaceOptimistic(String room, String tempId, MessageModel replacement) {
-    final list = room == 'grade10' ? _grade10Messages : _grade12Messages;
+  void _replaceOptimistic(
+      String room, String tempId, MessageModel replacement) {
+    final list =
+        room == 'grade10' ? _grade10Messages : _grade12Messages;
     final idx = list.indexWhere((m) => m.id == tempId);
     if (idx == -1) return;
     if (room == 'grade10') {
@@ -425,13 +630,17 @@ class LearnController extends GetxController {
     }
   }
 
-  Future<void> refreshMessages() async => loadMessages();
+  Future<void> refreshMessages() async {
+    await loadMessages();
+    await loadPinnedMessages();
+  }
 
   int getMessageCount(String room) =>
       room == 'grade10' ? _grade10Messages.length : _grade12Messages.length;
 
   MessageModel? getLastMessage(String room) {
-    final messages = room == 'grade10' ? _grade10Messages : _grade12Messages;
+    final messages =
+        room == 'grade10' ? _grade10Messages : _grade12Messages;
     return messages.isEmpty ? null : messages.last;
   }
 }

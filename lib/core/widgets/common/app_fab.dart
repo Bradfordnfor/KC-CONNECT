@@ -36,6 +36,7 @@ class AppFAB extends StatelessWidget {
       tooltip: tooltip,
       elevation: 4,
       highlightElevation: 8,
+      heroTag: null,
       child: Icon(icon, color: iconColor ?? AppColors.white, size: 30),
     );
   }
@@ -65,6 +66,7 @@ class AppFABExtended extends StatelessWidget {
       backgroundColor: backgroundColor ?? AppColors.blue,
       elevation: 4,
       highlightElevation: 8,
+      heroTag: null,
       icon: Icon(icon, color: foregroundColor ?? AppColors.white),
       label: Text(
         label,

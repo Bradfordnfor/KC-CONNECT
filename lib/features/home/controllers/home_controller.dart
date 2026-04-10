@@ -71,6 +71,7 @@ class HomeController extends GetxController {
   Future<void> _loadStatistics() async {
     final db = Supabase.instance.client;
     final userId = db.auth.currentUser?.id;
+    final now = DateTime.now().toIso8601String();
 
     final results = await Future.wait([
       db.from('events').select('id').neq('status', 'cancelled').neq('status', 'draft'),
@@ -88,6 +89,8 @@ class HomeController extends GetxController {
         db.from('user_favorites').select('id').eq('user_id', userId)
       else
         Future.value(<dynamic>[]),
+      // Active pinned messages (for staff/alumni card)
+      db.from('pinned_messages').select('id').gt('pinned_until', now),
     ]);
 
     _stats.value = {
@@ -97,6 +100,7 @@ class HomeController extends GetxController {
       'notifications': results[3].length,
       'myEvents': results[4].length,
       'myResources': results[5].length,
+      'pinnedMessages': results[6].length,
     };
   }
 

@@ -5,13 +5,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/resource_model.dart';
+import 'package:kc_connect/features/home/controllers/home_controller.dart';
 import 'package:kc_connect/core/screens/in_app_image_viewer.dart';
 import 'package:kc_connect/core/screens/in_app_pdf_viewer.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class ResourcesController extends GetxController {
   final _allResources = <ResourceModel>[].obs;
@@ -52,6 +52,17 @@ class ResourcesController extends GetxController {
     loadResources();
     loadFavorites();
     _loadDownloadedResources();
+
+    // Re-load favorites when a different user signs in so a previous user's
+    // saved list never leaks into the next session (controller is a singleton).
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      if (event.event == AuthChangeEvent.signedIn) {
+        loadFavorites();
+      } else if (event.event == AuthChangeEvent.signedOut) {
+        _favoriteResources.value = [];
+        _applyFilters();
+      }
+    });
   }
 
   Future<void> loadResources() async {
@@ -125,9 +136,19 @@ class ResourcesController extends GetxController {
         AppSnackbar.success('Saved', 'Added ${resource.title} to favorites');
       }
       _applyFilters();
+      // Keep home page activity stats in sync
+      _refreshHomeStats();
     } catch (e) {
       debugPrint('Toggle favorite error: $e');
       AppSnackbar.error('Error', 'Failed to update favourite');
+    }
+  }
+
+  void _refreshHomeStats() {
+    try {
+      Get.find<HomeController>().loadDashboardData();
+    } catch (_) {
+      // HomeController not yet registered (user hasn't visited home tab) — ignore.
     }
   }
 
@@ -150,6 +171,7 @@ class ResourcesController extends GetxController {
   }
 
   // ─── Open (tap on card) ─────────────────────────────────────────────────────
+  // Mirrors _openChatFile in learn_page.dart: in-app viewers only, no external apps.
 
   Future<void> openResource(ResourceModel resource) async {
     if (resource.fileUrl == null || resource.fileUrl!.isEmpty) {
@@ -157,12 +179,18 @@ class ResourcesController extends GetxController {
       return;
     }
 
-    final storagePath = _extractStoragePath(resource.fileUrl!);
-    final ext = storagePath.split('.').last.toLowerCase();
-    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext);
+    // Use the stored file_type column (e.g. 'pdf', 'docx', 'jpg').
+    // Fall back to parsing the URL only for old records missing file_type.
+    final ext = (resource.fileType?.isNotEmpty == true
+            ? resource.fileType!
+            : (Uri.tryParse(resource.fileUrl!)?.pathSegments.last ?? resource.fileUrl!)
+                .split('.')
+                .last)
+        .toLowerCase();
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
     final isPdf = ext == 'pdf';
 
-    // 1. Offline copy first
+    // 1. Offline copy — serve from local file, no network needed.
     if (_downloadedResources.containsKey(resource.id)) {
       final localPath = _downloadedResources[resource.id]!;
       final file = File(localPath);
@@ -170,8 +198,10 @@ class ResourcesController extends GetxController {
         if (isImage) {
           final bytes = await file.readAsBytes();
           Get.to(() => InAppImageViewer(bytes: bytes, title: resource.title));
-        } else {
+        } else if (isPdf) {
           Get.to(() => InAppPdfViewer(localPath: localPath, title: resource.title));
+        } else {
+          AppSnackbar.info('Cannot Open', 'This file type can only be saved offline, not viewed in-app.');
         }
         return;
       } else {
@@ -180,35 +210,23 @@ class ResourcesController extends GetxController {
       }
     }
 
-    // 2. Download bytes directly from private bucket (uses JWT auth, no signed URL needed)
+    // 2. Network — build the public URL and pass to the in-app viewer.
+    //    Same pattern as chat: public URL → InAppImageViewer / InAppPdfViewer.
     try {
-      AppSnackbar.info('Opening', 'Loading ${resource.title}...');
-      final bytes = await Supabase.instance.client.storage
-          .from('resources')
-          .download(storagePath);
+      final publicUrl = resource.fileUrl!.startsWith('http')
+          ? resource.fileUrl!
+          : Supabase.instance.client.storage
+              .from('resources')
+              .getPublicUrl(_extractStoragePath(resource.fileUrl!));
 
       if (isImage) {
-        Get.to(() => InAppImageViewer(bytes: bytes, title: resource.title));
+        Get.to(() => InAppImageViewer(imageUrl: publicUrl, title: resource.title));
       } else if (isPdf) {
-        // Write to temp file for PDF viewer
-        final dir = await getTemporaryDirectory();
-        final fileName = storagePath.split('/').last;
-        final tempFile = File('${dir.path}/$fileName');
-        await tempFile.writeAsBytes(bytes);
-        Get.to(() => InAppPdfViewer(localPath: tempFile.path, title: resource.title));
+        Get.to(() => InAppPdfViewer(url: publicUrl, title: resource.title));
       } else {
-        // Unsupported type: write to temp and let OS handle it
-        final dir = await getTemporaryDirectory();
-        final fileName = storagePath.split('/').last;
-        final tempFile = File('${dir.path}/$fileName');
-        await tempFile.writeAsBytes(bytes);
-        final uri = Uri.file(tempFile.path);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } else {
-          AppSnackbar.error('Error', 'Cannot open this file type on this device');
-          return;
-        }
+        // DOC/DOCX — no in-app viewer exists. Show same message as chat.
+        AppSnackbar.info('Cannot Open', 'This file type cannot be viewed in-app. Use the download button to save it.');
+        return;
       }
 
       _trackDownload(resource);
@@ -429,6 +447,7 @@ class ResourcesController extends GetxController {
       subject: r['subject'],
       description: r['description'] ?? '',
       fileUrl: r['file_url'],
+      fileType: r['file_type'] as String?,
       imageUrl: r['thumbnail_url'],
       uploadedBy: r['uploaded_by'] ?? '',
       uploaderName: r['uploader_name'] ?? '',
@@ -441,7 +460,8 @@ class ResourcesController extends GetxController {
     switch (db.toLowerCase()) {
       case 'o/l': return 'Ordinary Level';
       case 'a/l': return 'Advanced Level';
-      default: return db.isNotEmpty ? db : 'Other Books';
+      case 'other books': return 'Other Books';
+      default: return 'Other Books';
     }
   }
 }

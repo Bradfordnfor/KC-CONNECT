@@ -82,13 +82,13 @@ class _CarouselWidgetState extends State<CarouselWidget> {
   void _startAutoPlay() {
     _autoPlayTimer?.cancel();
     _autoPlayTimer = Timer.periodic(widget.autoPlayDuration, (timer) {
-      if (_pageController.hasClients && mounted) {
-        // Always move forward - this creates the seamless loop
+      if (!mounted || !_pageController.hasClients) return;
+      try {
         _pageController.nextPage(
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
         );
-      }
+      } catch (_) {}
     });
   }
 

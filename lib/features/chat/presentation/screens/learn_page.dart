@@ -8,6 +8,8 @@ import 'package:kc_connect/core/screens/in_app_pdf_viewer.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
+import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/chat/controllers/learn_controller.dart';
 
 class LearnPage extends StatelessWidget {
@@ -26,9 +28,9 @@ class LearnPage extends StatelessWidget {
             _buildCarouselBanner(),
             const SizedBox(height: 8),
             _buildTabBar(controller),
-            Expanded(child: _buildTabBarView(controller)),
+            Expanded(child: _buildTabBarView(context, controller)),
             _buildReplyBar(controller),
-            _buildInputAreaWithAIButton(controller),
+            _buildInputAreaWithAIButton(context, controller),
           ],
         ),
       ),
@@ -57,7 +59,8 @@ class LearnPage extends StatelessWidget {
                 alignment: Alignment.center,
                 height: 28,
                 width: 55,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(12),
@@ -183,7 +186,7 @@ class LearnPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTabBarView(LearnController controller) {
+  Widget _buildTabBarView(BuildContext context, LearnController controller) {
     return Obx(() {
       if (controller.isLoading) {
         return const Center(child: CircularProgressIndicator());
@@ -191,46 +194,241 @@ class LearnPage extends StatelessWidget {
       return IndexedStack(
         index: controller.currentTabIndex,
         children: [
-          _buildChatView(controller, controller.grade10Messages),
-          _buildChatView(controller, controller.grade12Messages),
+          _buildChatView(context, controller, controller.grade10Messages, 'grade10'),
+          _buildChatView(context, controller, controller.grade12Messages, 'grade12'),
         ],
       );
     });
   }
 
-  Widget _buildChatView(LearnController controller, List messages) {
-    if (messages.isEmpty) {
-      return Center(
+  Widget _buildChatView(
+    BuildContext context,
+    LearnController controller,
+    List messages,
+    String room,
+  ) {
+    return Column(
+      children: [
+        _buildPinnedBanner(context, controller, room),
+        Expanded(
+          child: messages.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 64,
+                        color: AppColors.blue.withValues(alpha: 0.3),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No messages yet',
+                        style:
+                            AppTextStyles.body.copyWith(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Be the first to start the conversation!',
+                        style: AppTextStyles.caption
+                            .copyWith(color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  itemCount: messages.length,
+                  itemBuilder: (ctx, index) {
+                    final message = messages[index] as MessageModel;
+                    return _buildMessageBubble(
+                        ctx, message, controller);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Pinned messages banner ───────────────────────────────────────────────
+
+  Widget _buildPinnedBanner(
+    BuildContext context,
+    LearnController controller,
+    String room,
+  ) {
+    return Obx(() {
+      final pinned = controller.pinnedForRoom(room);
+      if (pinned.isEmpty) return const SizedBox.shrink();
+
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 64,
-              color: AppColors.blue.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No messages yet',
-              style: AppTextStyles.body.copyWith(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Be the first to start the conversation!',
-              style: AppTextStyles.caption.copyWith(color: Colors.grey[500]),
-            ),
-          ],
+          children: pinned.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final pin = entry.value;
+            return Column(
+              children: [
+                if (idx > 0)
+                  Divider(
+                      height: 1,
+                      color: Colors.amber.withValues(alpha: 0.25)),
+                GestureDetector(
+                  onTap: () => _showPinnedDetail(context, pin, controller),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.push_pin,
+                            color: Colors.amber, size: 15),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                pin.messageSenderName,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.amber[800],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                pin.messageContent,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.black87,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          pin.timeRemainingLabel,
+                          style: AppTextStyles.caption.copyWith(
+                            color: Colors.grey[500],
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
         ),
       );
-    }
+    });
+  }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
-        final message = messages[index] as MessageModel;
-        return _buildMessageBubble(context, message, controller);
-      },
+  void _showPinnedDetail(
+    BuildContext context,
+    PinnedChatMessage pin,
+    LearnController controller,
+  ) {
+    final uid = controller.currentUserId;
+    final isPinner = pin.pinnedBy == uid;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.push_pin, color: Colors.amber, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Pinned Message',
+                    style: AppTextStyles.subHeading.copyWith(
+                        color: AppColors.blue, fontSize: 16),
+                  ),
+                  const Spacer(),
+                  Text(
+                    pin.timeRemainingLabel,
+                    style: AppTextStyles.caption.copyWith(
+                        color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pin.messageSenderName,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pin.messageContent,
+                      style: AppTextStyles.body.copyWith(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pinned by ${pin.pinnerName}',
+                style: AppTextStyles.caption
+                    .copyWith(color: Colors.grey[500], fontSize: 11),
+              ),
+              if (isPinner) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      controller.unpinMessage(pin.id);
+                      AppSnackbar.info('Unpinned', 'Message unpinned');
+                    },
+                    icon: const Icon(Icons.push_pin_outlined,
+                        color: Colors.red, size: 16),
+                    label: const Text('Unpin this message',
+                        style: TextStyle(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -242,9 +440,11 @@ class LearnPage extends StatelessWidget {
     final time = _formatTime(message.timestamp);
 
     Widget bubbleContent;
-    if (message.messageType != 'text' && message.status == MessageStatus.sending) {
+    if (message.messageType != 'text' &&
+        message.status == MessageStatus.sending) {
       bubbleContent = _buildUploadingBubble(isMe);
-    } else if (message.messageType != 'text' && message.status == MessageStatus.failed) {
+    } else if (message.messageType != 'text' &&
+        message.status == MessageStatus.failed) {
       bubbleContent = _buildFailedFileBubble();
     } else if (message.isImage && message.fileUrl != null) {
       bubbleContent = _buildImageBubble(context, message, isMe, time);
@@ -260,7 +460,8 @@ class LearnPage extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 6),
         constraints: BoxConstraints(maxWidth: Get.width * 0.75),
         child: GestureDetector(
-          onLongPress: () => _showMessageOptions(context, message, controller),
+          onLongPress: () =>
+              _showMessageOptions(context, message, controller),
           child: Column(
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -447,8 +648,7 @@ class LearnPage extends StatelessWidget {
 
   Widget _buildFileBubble(
       BuildContext context, MessageModel message, bool isMe, String time) {
-    final ext =
-        (message.fileName ?? '').split('.').last.toLowerCase();
+    final ext = (message.fileName ?? '').split('.').last.toLowerCase();
     final isPdf = ext == 'pdf';
 
     return Container(
@@ -522,7 +722,7 @@ class LearnPage extends StatelessWidget {
     );
   }
 
-  // ─── Reply quote (inside a message bubble) ───────────────────────────────
+  // ─── Reply quote ─────────────────────────────────────────────────────────
 
   Widget _buildReplyQuote(MessageModel message, bool isMe) {
     return Container(
@@ -638,88 +838,89 @@ class LearnPage extends StatelessWidget {
 
   // ─── Input area ──────────────────────────────────────────────────────────
 
-  Widget _buildInputAreaWithAIButton(LearnController controller) {
-    return Builder(
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(bottom: 15),
-        decoration: const BoxDecoration(color: Colors.transparent),
-        child: Row(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.blue.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.add, color: AppColors.blue),
-                onPressed: () => _showAttachmentSheet(context, controller),
-              ),
+  Widget _buildInputAreaWithAIButton(
+      BuildContext context, LearnController controller) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: const BoxDecoration(color: Colors.transparent),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.blue.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller.messageController,
-                decoration: InputDecoration(
-                  hintText: 'Type your message...',
-                  hintStyle:
-                      AppTextStyles.body.copyWith(color: Colors.grey, fontSize: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide:
-                        BorderSide(color: AppColors.blue.withValues(alpha: 0.3)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide:
-                        BorderSide(color: AppColors.blue.withValues(alpha: 0.3)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(color: AppColors.blue),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: IconButton(
+              icon: const Icon(Icons.add, color: AppColors.blue),
+              onPressed: () =>
+                  _showAttachmentSheet(context, controller),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller.messageController,
+              decoration: InputDecoration(
+                hintText: 'Type your message...',
+                hintStyle: AppTextStyles.body
+                    .copyWith(color: Colors.grey, fontSize: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(
+                      color: AppColors.blue.withValues(alpha: 0.3)),
                 ),
-                maxLines: null,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (text) => controller.sendMessage(text),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(
+                      color: AppColors.blue.withValues(alpha: 0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: AppColors.blue),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
               ),
+              maxLines: null,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (text) => controller.sendMessage(text),
             ),
-            const SizedBox(width: 8),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppColors.gradientColor,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.send, color: AppColors.white),
-                onPressed: () =>
-                    controller.sendMessage(controller.messageController.text),
-              ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+              gradient: AppColors.gradientColor,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 8),
-            Container(
-              decoration: const BoxDecoration(
-                color: AppColors.blue,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                tooltip: 'KC Connect AI',
-                icon: const Icon(Icons.auto_awesome,
-                    color: AppColors.white, size: 24),
-                onPressed: () => Get.toNamed(AppRoutes.aiChat),
-              ),
+            child: IconButton(
+              icon: const Icon(Icons.send, color: AppColors.white),
+              onPressed: () => controller
+                  .sendMessage(controller.messageController.text),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            decoration: const BoxDecoration(
+              color: AppColors.blue,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              tooltip: 'KC Connect AI',
+              icon: const Icon(Icons.auto_awesome,
+                  color: AppColors.white, size: 24),
+              onPressed: () => Get.toNamed(AppRoutes.aiChat),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // ─── Attachment sheet ────────────────────────────────────────────────────
 
-  void _showAttachmentSheet(BuildContext context, LearnController controller) {
+  void _showAttachmentSheet(
+      BuildContext context, LearnController controller) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -797,8 +998,19 @@ class LearnPage extends StatelessWidget {
 
   void _showMessageOptions(
       BuildContext context, MessageModel message, LearnController controller) {
-    // Skip for temp/optimistic messages still sending
     if (message.id.startsWith('temp_')) return;
+
+    final auth = Get.find<AuthController>();
+    final uid = controller.currentUserId;
+    final role = auth.currentUser?['role'] as String? ?? 'student';
+    final canPin = role == 'staff' || role == 'alumni';
+
+    final room = controller.currentRoom;
+    final pinned = controller.pinnedForRoom(room);
+    final alreadyPinned =
+        pinned.firstWhereOrNull((p) => p.messageId == message.id);
+    final isPinner = alreadyPinned?.pinnedBy == uid;
+    final canAddPin = canPin && alreadyPinned == null && pinned.length < 2;
 
     showModalBottomSheet(
       context: context,
@@ -817,6 +1029,7 @@ class LearnPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+            // Reply
             ListTile(
               leading: const Icon(Icons.reply, color: AppColors.blue),
               title: const Text('Reply'),
@@ -825,9 +1038,11 @@ class LearnPage extends StatelessWidget {
                 controller.setReplyTo(message);
               },
             ),
+            // Delete own message
             if (message.isMe)
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                leading:
+                    const Icon(Icons.delete_outline, color: Colors.red),
                 title: const Text('Delete',
                     style: TextStyle(color: Colors.red)),
                 onTap: () {
@@ -835,10 +1050,130 @@ class LearnPage extends StatelessWidget {
                   _showDeleteConfirmation(context, message, controller);
                 },
               ),
+            // Pin (staff/alumni, not already pinned, room has < 2 pins)
+            if (canAddPin)
+              ListTile(
+                leading: const Icon(Icons.push_pin_outlined,
+                    color: Colors.amber),
+                title: const Text('Pin Message'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showPinDurationPicker(context, message, controller);
+                },
+              ),
+            // Unpin (only by the person who pinned it)
+            if (isPinner && alreadyPinned != null)
+              ListTile(
+                leading:
+                    const Icon(Icons.push_pin, color: Colors.amber),
+                title: const Text('Unpin Message'),
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.unpinMessage(alreadyPinned.id);
+                  AppSnackbar.info('Unpinned', 'Message unpinned');
+                },
+              ),
+            // Info when room is full and user could otherwise pin
+            if (canPin && alreadyPinned == null && pinned.length >= 2)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Text(
+                  'This room already has 2 pinned messages. Unpin one to add another.',
+                  style: AppTextStyles.caption
+                      .copyWith(color: Colors.grey[500], fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             const SizedBox(height: 8),
           ],
         ),
       ),
+    );
+  }
+
+  // ─── Pin duration picker ─────────────────────────────────────────────────
+
+  void _showPinDurationPicker(
+      BuildContext context, MessageModel message, LearnController controller) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Text(
+                'Pin for how long?',
+                style: AppTextStyles.subHeading.copyWith(
+                    color: AppColors.blue, fontSize: 16),
+              ),
+            ),
+            _buildDurationTile(
+              context: context,
+              icon: Icons.access_time,
+              label: '24 hours',
+              hours: 24,
+              message: message,
+              controller: controller,
+            ),
+            _buildDurationTile(
+              context: context,
+              icon: Icons.calendar_today,
+              label: '7 days',
+              hours: 24 * 7,
+              message: message,
+              controller: controller,
+            ),
+            _buildDurationTile(
+              context: context,
+              icon: Icons.event,
+              label: '30 days',
+              hours: 24 * 30,
+              message: message,
+              controller: controller,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required int hours,
+    required MessageModel message,
+    required LearnController controller,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.blue),
+      title: Text(label),
+      onTap: () async {
+        Navigator.pop(context);
+        final success = await controller.pinMessage(message, hours);
+        if (success) {
+          AppSnackbar.success('Pinned', 'Message pinned for $label');
+        } else {
+          AppSnackbar.error(
+            'Cannot Pin',
+            'This chat room already has 2 pinned messages. Unpin one first.',
+          );
+        }
+      },
     );
   }
 
@@ -890,7 +1225,6 @@ class LearnPage extends StatelessWidget {
         ),
       );
     } else {
-      // Unsupported type — show snackbar
       Get.snackbar(
         'Cannot Open',
         'This file type cannot be opened in-app. Try downloading it.',
@@ -903,7 +1237,8 @@ class LearnPage extends StatelessWidget {
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   String _formatTime(DateTime timestamp) {
-    final hour = timestamp.hour > 12 ? timestamp.hour - 12 : timestamp.hour;
+    final hour =
+        timestamp.hour > 12 ? timestamp.hour - 12 : timestamp.hour;
     final minute = timestamp.minute.toString().padLeft(2, '0');
     final period = timestamp.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';

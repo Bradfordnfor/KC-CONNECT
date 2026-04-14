@@ -7,6 +7,7 @@ import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/cards/alumni_card.dart';
 import 'package:kc_connect/features/alumni/controllers/alumni_controller.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
 class AlumniPage extends StatelessWidget {
   const AlumniPage({super.key});
@@ -255,6 +256,7 @@ class AlumniPage extends StatelessWidget {
             school: alumni.school,
             classInfo: alumni.classInfo,
             onTap: () {
+              if (checkSubscriptionGate()) return;
               Get.toNamed(AppRoutes.alumniDetail, arguments: alumni.toMap());
             },
           );

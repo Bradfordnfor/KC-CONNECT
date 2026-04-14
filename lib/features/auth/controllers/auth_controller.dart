@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -252,20 +253,22 @@ class AuthController extends GetxController {
     try {
       _isLoading.value = true;
 
-      // Check OTP is correct, active, and admin has approved it
-      final record = await Supabase.instance.client
+      // Use limit(1) + order to avoid 406 if multiple rows exist for same email
+      final results = await Supabase.instance.client
           .from('pending_signups')
           .select()
           .eq('email', email)
           .eq('otp', otp)
           .eq('is_active', true)
-          .maybeSingle();
+          .order('created_at', ascending: false)
+          .limit(1);
 
-      if (record == null) {
+      if (results.isEmpty) {
         _isLoading.value = false;
         return {'success': false, 'error': 'Invalid OTP. Please check and try again.'};
       }
 
+      final record = results.first;
       final adminApproved = record['admin_approved'] as bool? ?? false;
       if (!adminApproved) {
         _isLoading.value = false;
@@ -279,13 +282,19 @@ class AuthController extends GetxController {
       );
 
       final data = result.data as Map<String, dynamic>?;
-      if (data == null || data['credential'] == null) {
+      if (data == null || data['success'] != true) {
+        _isLoading.value = false;
+        final errMsg = data?['error'] as String? ?? 'Account setup failed.';
+        debugPrint('complete-signup error: $errMsg');
+        return {'success': false, 'error': errMsg};
+      }
+
+      if (data['credential'] == null) {
         _isLoading.value = false;
         return {'success': false, 'error': 'Account setup failed. Please contact support.'};
       }
 
       // Sign in with the credential returned by the edge function.
-      // This avoids magic-link token expiry issues entirely.
       await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: data['credential'] as String,
@@ -296,7 +305,7 @@ class AuthController extends GetxController {
     } catch (e) {
       _isLoading.value = false;
       debugPrint('OTP verification error: $e');
-      return {'success': false, 'error': 'Verification failed. Please try again.'};
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -394,11 +403,8 @@ class AuthController extends GetxController {
   /// Generates a secure 6-character alphanumeric OTP.
   String _generateOTP() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return List.generate(
-      6,
-      (i) => chars[(now + i * 31) % chars.length],
-    ).join();
+    final rng = Random.secure();
+    return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 
   /// Sends the OTP to the user's email via a Supabase Edge Function.

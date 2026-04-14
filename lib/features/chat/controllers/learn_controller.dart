@@ -1,6 +1,7 @@
 // lib/features/chat/controllers/learn_controller.dart
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -72,6 +73,20 @@ class LearnController extends GetxController {
   // Text controllers
   final messageController = TextEditingController();
 
+  // Scroll controllers for each chat room
+  final grade10ScrollController = ScrollController();
+  final grade12ScrollController = ScrollController();
+
+  // GlobalKeys for accurate scroll-to-message
+  final Map<String, GlobalKey> messageKeys = {};
+
+  GlobalKey keyForMessage(String messageId) {
+    return messageKeys.putIfAbsent(messageId, () => GlobalKey());
+  }
+
+  ScrollController scrollControllerForRoom(String room) =>
+      room == 'grade10' ? grade10ScrollController : grade12ScrollController;
+
   // Supabase realtime channel
   RealtimeChannel? _channel;
 
@@ -115,7 +130,34 @@ class LearnController extends GetxController {
   @override
   void onClose() {
     _channel?.unsubscribe();
+    grade10ScrollController.dispose();
+    grade12ScrollController.dispose();
     super.onClose();
+  }
+
+  /// Scrolls to the message matching [messageId] regardless of direction.
+  /// Uses [RenderAbstractViewport.getOffsetToReveal] for pixel-perfect accuracy.
+  void scrollToMessage(String messageId, String room) {
+    final key = messageKeys[messageId];
+    if (key == null || key.currentContext == null) return;
+    final sc = scrollControllerForRoom(room);
+    if (!sc.hasClients) return;
+
+    final renderObject = key.currentContext!.findRenderObject();
+    if (renderObject == null) return;
+
+    final viewport = RenderAbstractViewport.of(renderObject);
+    // alignment 0.2 places the message near the top of the viewport
+    final revealOffset =
+        viewport.getOffsetToReveal(renderObject, 0.2).offset;
+    final target =
+        revealOffset.clamp(0.0, sc.position.maxScrollExtent);
+
+    sc.animateTo(
+      target,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
   }
 
   // ─── Reply ─────────────────────────────────────────────────────────────────

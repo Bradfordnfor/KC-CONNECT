@@ -134,15 +134,17 @@ class EventsController extends GetxController {
       }
 
       final now = DateTime.now().toIso8601String();
-      await Supabase.instance.client.from('event_registrations').insert({
+      // Upsert so re-registering after cancellation updates the existing row
+      // instead of failing with a duplicate key error.
+      await Supabase.instance.client.from('event_registrations').upsert({
         'event_id': eventId,
         'user_id': userId,
         'status': 'registered',
         'payment_status': event.isPaid ? 'pending' : 'not_required',
         'registration_date': now,
-        'created_at': now,
+        'cancelled_at': null,
         'updated_at': now,
-      });
+      }, onConflict: 'event_id,user_id');
 
       // Use RPC (SECURITY DEFINER) so the events table RLS doesn't block the
       // count increment — same approach as the paid registration flow.

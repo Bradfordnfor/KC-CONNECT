@@ -24,6 +24,7 @@ class AdminEventsController extends GetxController {
       final response = await Supabase.instance.client
           .from('events')
           .select()
+          .neq('status', 'cancelled')
           .order('start_date', ascending: false);
 
       _events.value =

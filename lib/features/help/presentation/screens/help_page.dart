@@ -442,10 +442,7 @@ class _HelpPageState extends State<HelpPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              feedbackController.dispose();
-              Navigator.pop(dialogContext);
-            },
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
@@ -456,7 +453,6 @@ class _HelpPageState extends State<HelpPage> {
                 return;
               }
               Navigator.pop(dialogContext);
-              feedbackController.dispose();
               await _submitFeedback(selectedType, message);
             },
             style: ElevatedButton.styleFrom(

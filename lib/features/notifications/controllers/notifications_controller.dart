@@ -356,7 +356,8 @@ class NotificationsController extends GetxController {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      await _markMentorshipHandled(notificationId);
+      await _markMentorshipHandled(notificationId,
+          actionType: 'mentorship_accepted');
       AppSnackbar.success('Accepted', 'Mentorship request accepted.');
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to accept request.');
@@ -400,21 +401,60 @@ class NotificationsController extends GetxController {
   }
 
   /// Marks a mentorship notification as handled — sets is_read and changes
-  /// action_type so the Accept/Decline buttons no longer render in the modal.
-  Future<void> _markMentorshipHandled(String notificationId) async {
+  /// action_type so the correct buttons render (or stop rendering) in the modal.
+  Future<void> _markMentorshipHandled(String notificationId,
+      {String actionType = 'mentorship_handled'}) async {
     await Supabase.instance.client
         .from('notifications')
         .update({
           'is_read': true,
           'read_at': DateTime.now().toIso8601String(),
-          'action_type': 'mentorship_handled',
+          'action_type': actionType,
         })
         .eq('id', notificationId);
 
     final index = _allNotifications.indexWhere((n) => n.id == notificationId);
     if (index != -1) {
       _allNotifications[index] = _allNotifications[index]
-          .copyWith(isRead: true, actionType: 'mentorship_handled');
+          .copyWith(isRead: true, actionType: actionType);
+    }
+  }
+
+  // Called when the alumni taps "End Mentorship" from their notification.
+  Future<void> endMentorshipFromAlumni(
+      String notificationId, String requestId) async {
+    try {
+      final req = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('student_id')
+          .eq('id', requestId)
+          .single();
+      final studentId = req['student_id'] as String;
+
+      await Supabase.instance.client
+          .from('mentorship_requests')
+          .update({'status': 'ended'})
+          .eq('id', requestId);
+
+      final me = Get.find<AuthController>().currentUser;
+      final mentorName = me?['full_name'] as String? ?? 'Your mentor';
+
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': studentId,
+        'title': 'Mentorship Ended',
+        'message':
+            '$mentorName has ended their mentorship with you. You can now request mentorship from other alumni.',
+        'type': 'mentorship',
+        'action_type': 'mentorship_ended',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      await _markMentorshipHandled(notificationId,
+          actionType: 'mentorship_ended');
+      AppSnackbar.info('Ended', 'Mentorship has been ended.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to end mentorship.');
     }
   }
 

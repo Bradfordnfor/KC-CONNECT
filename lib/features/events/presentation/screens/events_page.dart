@@ -14,6 +14,7 @@ import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/events/controllers/events_controller.dart';
 import 'package:kc_connect/features/events/presentation/widgets/add_event_modal.dart';
 import 'package:kc_connect/features/events/presentation/widgets/event_payment_bottom_sheet.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class EventsPage extends StatelessWidget {
@@ -81,8 +82,40 @@ class EventsPage extends StatelessWidget {
 
   Widget _buildFeaturedEventCarousel() {
     return Obx(() {
-      if (controller.featuredEvents.isEmpty) {
-        return const SizedBox.shrink();
+      final featured = controller.featuredEvents;
+      // If no featured events, show a static promotional banner
+      if (featured.isEmpty) {
+        return CarouselWidget(
+          height: 150,
+          autoPlay: false,
+          showIndicators: false,
+          items: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppColors.gradientColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.event, color: AppColors.white, size: 36),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Stay tuned for upcoming events!',
+                      style: AppTextStyles.subHeading.copyWith(
+                        color: AppColors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
       }
 
       return CarouselWidget(
@@ -90,7 +123,7 @@ class EventsPage extends StatelessWidget {
         autoPlay: true,
         autoPlayDuration: const Duration(seconds: 5),
         showIndicators: true,
-        items: controller.featuredEvents.map((event) {
+        items: featured.map((event) {
           return _buildFeaturedEventCard(event.title, event.daysToGo);
         }).toList(),
       );
@@ -334,6 +367,7 @@ class EventsPage extends StatelessWidget {
                   child: PrimaryButton(
                     label: isRegistered ? 'Unregister' : 'Register',
                     onPressed: () {
+                      if (!isRegistered && checkSubscriptionGate()) return;
                       if (isRegistered) {
                         controller.unregisterFromEvent(event.id);
                       } else if (event.isPaid) {
@@ -464,6 +498,7 @@ class EventsPage extends StatelessWidget {
                     expanded: true,
                     height: 48,
                     onPressed: () {
+                      if (!isRegistered && checkSubscriptionGate()) return;
                       if (isRegistered) {
                         controller.unregisterFromEvent(event.id);
                         Navigator.pop(context);

@@ -12,6 +12,7 @@ import 'package:kc_connect/core/widgets/error_widget.dart';
 import 'package:kc_connect/core/widgets/loading_indicator.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/resources/controllers/resources_controller.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 import 'package:kc_connect/features/resources/presentation/widgets/upload_resource_modal.dart';
 
 class ResourcesPage extends StatefulWidget {
@@ -372,7 +373,10 @@ class _ResourcesPageState extends State<ResourcesPage>
           tagColor: Colors.green,
           subtitle: resource.subtitle,
           meta: resource.meta,
-          onTap: () => controller.openResource(resource),
+          onTap: () {
+            if (checkSubscriptionGate()) return;
+            controller.openResource(resource);
+          },
           rightWidget: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

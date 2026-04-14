@@ -23,7 +23,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       icon: const Icon(Icons.check_circle, color: AppColors.white),
-      duration: const Duration(seconds: 3),
+      duration: const Duration(milliseconds: 1800),
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
     );
@@ -40,7 +40,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       icon: const Icon(Icons.error, color: AppColors.white),
-      duration: const Duration(seconds: 4),
+      duration: const Duration(milliseconds: 2500),
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
     );
@@ -57,7 +57,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       icon: const Icon(Icons.info, color: AppColors.white),
-      duration: const Duration(seconds: 3),
+      duration: const Duration(milliseconds: 1800),
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
     );
@@ -74,7 +74,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       icon: const Icon(Icons.warning, color: AppColors.white),
-      duration: const Duration(seconds: 3),
+      duration: const Duration(milliseconds: 2000),
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
     );
@@ -98,7 +98,7 @@ class AppSnackbar {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       icon: icon != null ? Icon(icon, color: textColor) : null,
-      duration: duration ?? const Duration(seconds: 3),
+      duration: duration ?? const Duration(milliseconds: 1800),
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
     );

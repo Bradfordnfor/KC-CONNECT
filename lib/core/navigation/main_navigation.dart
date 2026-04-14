@@ -15,7 +15,6 @@ import 'package:kc_connect/features/events/presentation/screens/events_page.dart
 import 'package:kc_connect/features/kstore/presentation/screens/kstore_page.dart';
 import 'package:kc_connect/features/alumni/presentation/widgets/alumni_profile_setup_sheet.dart';
 import 'package:kc_connect/features/notifications/controllers/notifications_controller.dart';
-import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -127,12 +126,7 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     }
 
-    if (needsSubscription) {
-      Get.dialog(
-        const SubscriptionPaymentModal(),
-        barrierDismissible: false,
-      );
-    }
+    // Paywall is now lazy — shown only when user tries a gated action.
   }
 
   @override

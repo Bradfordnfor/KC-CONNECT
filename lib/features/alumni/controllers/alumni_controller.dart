@@ -295,6 +295,21 @@ class AlumniController extends GetxController {
         return;
       }
 
+      // Check if this student already has an accepted mentor
+      final existingAccepted = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('id')
+          .eq('student_id', userId)
+          .eq('status', 'accepted');
+
+      if ((existingAccepted as List).isNotEmpty) {
+        AppSnackbar.warning(
+          'Already Has Mentor',
+          'You already have an active mentor. You can only have one mentor at a time.',
+        );
+        return;
+      }
+
       // Capacity check: count active (accepted) mentorships for this alumni
       final activeList = await Supabase.instance.client
           .from('mentorship_requests')
@@ -354,6 +369,53 @@ class AlumniController extends GetxController {
       );
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to send mentorship request');
+    }
+  }
+
+  Future<void> endMentorship(String alumniId) async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final response = await Supabase.instance.client
+          .from('mentorship_requests')
+          .select('id')
+          .eq('student_id', userId)
+          .eq('mentor_id', alumniId)
+          .eq('status', 'accepted')
+          .maybeSingle();
+
+      if (response == null) {
+        AppSnackbar.error('Error', 'No active mentorship found.');
+        return;
+      }
+
+      final requestId = response['id'] as String;
+
+      await Supabase.instance.client
+          .from('mentorship_requests')
+          .update({'status': 'ended'})
+          .eq('id', requestId);
+
+      final me = Get.find<AuthController>().currentUser;
+      final studentName = me?['full_name'] as String? ?? 'Your mentee';
+
+      await Supabase.instance.client.from('notifications').insert({
+        'user_id': alumniId,
+        'title': 'Mentorship Ended',
+        'message': '$studentName has ended their mentorship with you.',
+        'type': 'mentorship',
+        'action_type': 'mentorship_ended',
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      _mentorshipStatuses.remove(alumniId);
+      _mentorshipStatuses.refresh();
+
+      AppSnackbar.info('Ended', 'Your mentorship has been ended.');
+    } catch (e) {
+      AppSnackbar.error('Error', 'Failed to end mentorship.');
     }
   }
 

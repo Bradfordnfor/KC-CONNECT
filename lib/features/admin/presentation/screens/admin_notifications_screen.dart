@@ -61,6 +61,13 @@ class AdminNotificationsPage extends StatelessWidget {
                     ),
                 ],
               )),
+          Obx(() => IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined, color: AppColors.red),
+                tooltip: 'Clear all',
+                onPressed: controller.hasNotifications
+                    ? () => _confirmClearAll(context, controller)
+                    : null,
+              )),
         ],
       ),
       backgroundColor: AppColors.backgroundColor,
@@ -356,6 +363,45 @@ class AdminNotificationsPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmClearAll(
+    BuildContext context,
+    NotificationsController controller,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Clear All Notifications',
+          style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
+        ),
+        content: Text(
+          'This will permanently delete all notifications. This cannot be undone.',
+          style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.clearAllNotifications();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.red,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Clear All'),
+          ),
+        ],
       ),
     );
   }

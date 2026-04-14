@@ -6,6 +6,7 @@ import 'package:kc_connect/core/navigation/main_navigation.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/features/notifications/controllers/notifications_controller.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
 class NewsPage extends StatelessWidget {
   const NewsPage({super.key});
@@ -234,6 +235,8 @@ class NewsPage extends StatelessWidget {
   ) {
     final isMentorshipRequest = notification.actionType == 'mentorship_request' &&
         notification.actionId != null;
+    final isMentorshipActive = notification.actionType == 'mentorship_accepted' &&
+        notification.actionId != null;
 
     final meta = notification.metadata;
     final studentBio = meta?['student_bio'] as String? ?? '';
@@ -350,6 +353,7 @@ class NewsPage extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
+                            if (checkSubscriptionGate()) return;
                             Get.back();
                             controller.rejectMentorshipRequest(
                               notification.id,
@@ -371,6 +375,7 @@ class NewsPage extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
+                            if (checkSubscriptionGate()) return;
                             Get.back();
                             controller.acceptMentorshipRequest(
                               notification.id,
@@ -390,6 +395,27 @@ class NewsPage extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                ] else if (isMentorshipActive) ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.person_remove_outlined,
+                        color: AppColors.red, size: 20),
+                    label: Text('End Mentorship',
+                        style:
+                            AppTextStyles.body.copyWith(color: AppColors.red)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.red),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () {
+                      Get.back();
+                      controller.endMentorshipFromAlumni(
+                        notification.id,
+                        notification.actionId!,
+                      );
+                    },
                   ),
                 ] else ...[
                   ElevatedButton(

@@ -91,7 +91,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
                 _pickedFile != null
                     ? '${_pickedFile!.name}  '
                         '(${FileSizeValidator.formatBytes(_pickedFile!.size)})'
-                    : 'Select File (PDF / DOCX)',
+                    : 'Select File (PDF only)',
                 overflow: TextOverflow.ellipsis,
               ),
               style: OutlinedButton.styleFrom(
@@ -174,7 +174,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'docx', 'doc'],
+      allowedExtensions: ['pdf'],
       withData: true,
     );
     if (result != null && result.files.isNotEmpty) {

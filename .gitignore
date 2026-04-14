@@ -48,5 +48,10 @@ app.*.map.json
 .env
 *.env
 
+# Android signing — never commit these
+android/key.properties
+*.jks
+*.keystore
+
 # Claude Code local settings
 .claude/

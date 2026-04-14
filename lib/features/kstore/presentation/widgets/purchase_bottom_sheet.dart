@@ -296,9 +296,120 @@ class _PurchaseBottomSheetState extends State<PurchaseBottomSheet> {
           Get.find<StoreController>().loadProducts();
         }
 
-        AppSnackbar.success(
-          'Order Placed!',
-          'Your order #$orderNumber has been placed successfully.',
+        // Notify all admins of the new order
+        try {
+          final user = Get.find<AuthController>().currentUser;
+          final buyerName = user?['full_name'] as String? ?? 'Unknown';
+          final buyerPhone = user?['phone_number'] as String? ?? 'N/A';
+          final buyerEmail = user?['email'] as String? ?? 'N/A';
+
+          final admins = await Supabase.instance.client
+              .from('users')
+              .select('id')
+              .eq('role', 'admin');
+
+          if ((admins as List).isNotEmpty) {
+            final notifications = admins.map((admin) => {
+              'user_id': admin['id'],
+              'title': 'New Product Order',
+              'message': '$buyerName ordered ${widget.product.title} (XAF ${widget.product.price.toStringAsFixed(0)}). Contact: $buyerPhone | $buyerEmail.',
+              'type': 'announcement',
+              'priority': 'high',
+              'is_read': false,
+              'created_at': now.toIso8601String(),
+            }).toList();
+            await Supabase.instance.client.from('notifications').insert(notifications);
+          }
+        } catch (_) {}
+
+        // Show success modal
+        Get.dialog(
+          Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE8F5E9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_circle_outline,
+                        color: Colors.green, size: 36),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Order Confirmed!',
+                    style: AppTextStyles.subHeading.copyWith(
+                      color: AppColors.blue,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Your order #$orderNumber for ${widget.product.title} has been received.',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.blue.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time,
+                            color: AppColors.blue, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Our team will contact you within 24 hours to arrange delivery.',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.blue,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Get.back(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.blue,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text('Got it',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          barrierDismissible: false,
         );
       } catch (e) {
         AppSnackbar.error(

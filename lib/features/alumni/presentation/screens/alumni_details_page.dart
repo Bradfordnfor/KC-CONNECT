@@ -321,6 +321,32 @@ class AlumniDetailPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Obx(() {
+        final status = controller.mentorshipStatus(alumniId);
+
+        if (status == 'accepted') {
+          return SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.person_remove_outlined,
+                  color: AppColors.red, size: 20),
+              label: Text(
+                'End Mentorship',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.red,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                side: const BorderSide(color: AppColors.red),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => _confirmEndMentorship(controller, alumniId),
+            ),
+          );
+        }
+
         final disabled = controller.isMentorshipButtonDisabled(alumniId);
         final label = controller.mentorshipButtonLabel(alumniId);
 
@@ -331,6 +357,42 @@ class AlumniDetailPage extends StatelessWidget {
           height: 50,
         );
       }),
+    );
+  }
+
+  void _confirmEndMentorship(AlumniController controller, String alumniId) {
+    Get.dialog(
+      AlertDialog(
+        title: Text(
+          'End Mentorship',
+          style: AppTextStyles.subHeading.copyWith(color: AppColors.red),
+        ),
+        content: Text(
+          'Are you sure you want to end your mentorship with ${alumniData['name']}? You will be able to request a new mentor afterwards.',
+          style: AppTextStyles.body.copyWith(
+            color: Colors.grey[700],
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child:
+                Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back();
+              controller.endMentorship(alumniId);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.red,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('End Mentorship'),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -53,37 +53,41 @@ Deno.serve(async (req) => {
 
     // 2. Create the auth user (or recover existing one on double-submit)
     let userId: string;
-    const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
-      email: signup.email,
-      password: authPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: signup.name,
-        phone_number: signup.phone ?? '',
-        role: signup.role?.toLowerCase() ?? 'staff',
-      },
-    });
 
-    if (createError) {
-      if (createError.message?.includes('already been registered')) {
-        // User already exists — update their password and continue
-        const { data: listData } = await adminClient.auth.admin.listUsers();
-        const existing = listData?.users?.find((u: { email: string }) => u.email === email);
-        if (!existing) {
-          return new Response(JSON.stringify({ error: createError.message }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        await adminClient.auth.admin.updateUserById(existing.id, { password: authPassword });
-        userId = existing.id;
-      } else {
+    // Check upfront if the auth user already exists (handles retry / double-submit)
+    const { data: userList } = await adminClient.auth.admin.listUsers();
+    const existingAuthUser = userList?.users?.find((u: { email: string }) => u.email === email);
+
+    if (existingAuthUser) {
+      // Already exists — just update password and proceed
+      await adminClient.auth.admin.updateUserById(existingAuthUser.id, { password: authPassword });
+      userId = existingAuthUser.id;
+    } else {
+      // Clean up any stale public.users row for this email before creating the auth user.
+      // The handle_new_user trigger does INSERT INTO public.users — if a stale row exists
+      // with the same email, the trigger hits a UNIQUE constraint and the whole createUser
+      // call fails with "database error creating new user".
+      // OTP has already been verified above, so deleting a stale row here is safe.
+      await adminClient.from('users').delete().eq('email', signup.email);
+
+      const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
+        email: signup.email,
+        password: authPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: signup.name,
+          phone_number: signup.phone ?? '',
+          role: signup.role?.toLowerCase() ?? 'staff',
+        },
+      });
+
+      if (createError) {
+        console.error('createUser error:', createError.message);
         return new Response(JSON.stringify({ error: createError.message ?? 'Failed to create user' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-    } else {
       userId = authData.user!.id;
     }
 

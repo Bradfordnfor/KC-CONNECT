@@ -233,7 +233,7 @@ class KstorePage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 50),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.85,
+          mainAxisExtent: 220,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
         ),

@@ -48,8 +48,8 @@ class PaymentController extends GetxController {
         return PaymentResult.failed;
       }
 
-      // Poll every 5 s for up to 2 min
-      for (int i = 0; i < 24; i++) {
+      // Poll every 5 s for up to 5 min
+      for (int i = 0; i < 60; i++) {
         await Future.delayed(const Duration(seconds: 5));
         final status = await CampayService.checkStatus(reference);
         debugPrint('Poll ${i + 1}/24: $status');

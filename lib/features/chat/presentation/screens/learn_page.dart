@@ -11,6 +11,7 @@ import 'package:kc_connect/core/widgets/carousel_widget.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/chat/controllers/learn_controller.dart';
+import 'package:kc_connect/features/payment/presentation/widgets/subscription_payment_modal.dart';
 
 class LearnPage extends StatelessWidget {
   const LearnPage({super.key});
@@ -237,13 +238,18 @@ class LearnPage extends StatelessWidget {
                   ),
                 )
               : ListView.builder(
+                  controller:
+                      controller.scrollControllerForRoom(room),
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 8),
                   itemCount: messages.length,
                   itemBuilder: (ctx, index) {
                     final message = messages[index] as MessageModel;
-                    return _buildMessageBubble(
-                        ctx, message, controller);
+                    return KeyedSubtree(
+                      key: controller.keyForMessage(message.id),
+                      child: _buildMessageBubble(
+                          ctx, message, controller),
+                    );
                   },
                 ),
         ),
@@ -280,7 +286,9 @@ class LearnPage extends StatelessWidget {
                       height: 1,
                       color: Colors.amber.withValues(alpha: 0.25)),
                 GestureDetector(
-                  onTap: () => _showPinnedDetail(context, pin, controller),
+                  onTap: () => controller.scrollToMessage(pin.messageId, room),
+                  onLongPress: () =>
+                      _showPinnedDetail(context, pin, controller),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 8),
@@ -884,7 +892,10 @@ class LearnPage extends StatelessWidget {
               ),
               maxLines: null,
               textInputAction: TextInputAction.send,
-              onSubmitted: (text) => controller.sendMessage(text),
+              onSubmitted: (text) {
+                if (checkSubscriptionGate()) return;
+                controller.sendMessage(text);
+              },
             ),
           ),
           const SizedBox(width: 8),
@@ -895,8 +906,10 @@ class LearnPage extends StatelessWidget {
             ),
             child: IconButton(
               icon: const Icon(Icons.send, color: AppColors.white),
-              onPressed: () => controller
-                  .sendMessage(controller.messageController.text),
+              onPressed: () {
+                if (checkSubscriptionGate()) return;
+                controller.sendMessage(controller.messageController.text);
+              },
             ),
           ),
           const SizedBox(width: 8),
@@ -955,7 +968,42 @@ class LearnPage extends StatelessWidget {
                 color: Colors.orange,
                 onTap: () {
                   Navigator.pop(context);
-                  controller.sendFile();
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      title: Row(
+                        children: const [
+                          Icon(Icons.picture_as_pdf,
+                              color: AppColors.blue, size: 24),
+                          SizedBox(width: 8),
+                          Text('PDF Files Only'),
+                        ],
+                      ),
+                      content: const Text(
+                          'This platform only accepts PDF files in chat. Please make sure your file is in PDF format before selecting.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            controller.sendFile();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.blue,
+                            foregroundColor: AppColors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Select PDF'),
+                        ),
+                      ],
+                    ),
+                  );
                 },
               ),
             ],
@@ -1003,7 +1051,7 @@ class LearnPage extends StatelessWidget {
     final auth = Get.find<AuthController>();
     final uid = controller.currentUserId;
     final role = auth.currentUser?['role'] as String? ?? 'student';
-    final canPin = role == 'staff' || role == 'alumni';
+    final canPin = role == 'staff' || role == 'alumni' || role == 'admin';
 
     final room = controller.currentRoom;
     final pinned = controller.pinnedForRoom(room);

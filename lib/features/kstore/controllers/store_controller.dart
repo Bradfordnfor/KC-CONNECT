@@ -1,20 +1,24 @@
 // lib/features/store/controllers/store_controller.dart
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/product_model.dart';
+import 'package:kc_connect/core/models/promo_model.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StoreController extends GetxController {
   final _products = <ProductModel>[].obs;
   final _filteredProducts = <ProductModel>[].obs;
+  final _promos = <PromoModel>[].obs;
   final _selectedCategory = 'All'.obs;
   final _searchQuery = ''.obs;
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
-  final _cartItems = <String, int>{}.obs; // productId -> quantity
+  final _cartItems = <String, int>{}.obs;
 
   List<ProductModel> get products => _products;
   List<ProductModel> get filteredProducts => _filteredProducts;
+  List<PromoModel> get promos => _promos;
   String get selectedCategory => _selectedCategory.value;
   String get searchQuery => _searchQuery.value;
   bool get isLoading => _isLoading.value;
@@ -25,6 +29,7 @@ class StoreController extends GetxController {
   void onInit() {
     super.onInit();
     loadProducts();
+    loadPromos();
   }
 
   Future<void> loadProducts() async {
@@ -45,6 +50,36 @@ class StoreController extends GetxController {
     } catch (e) {
       _errorMessage.value = 'Failed to load products';
       _isLoading.value = false;
+    }
+  }
+
+  Future<void> loadPromos() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('store_promos')
+          .select()
+          .eq('is_active', true)
+          .order('created_at');
+      _promos.value = (response as List)
+          .map((r) => PromoModel.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Load promos error: $e');
+    }
+  }
+
+  Future<void> deleteProduct(String productId) async {
+    try {
+      await Supabase.instance.client
+          .from('products')
+          .update({'status': 'archived'})
+          .eq('id', productId);
+      _products.removeWhere((p) => p.id == productId);
+      _filterProducts();
+      AppSnackbar.success('Deleted', 'Product removed successfully');
+    } catch (e) {
+      debugPrint('Delete product error: $e');
+      AppSnackbar.error('Error', 'Failed to delete product');
     }
   }
 

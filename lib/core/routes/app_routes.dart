@@ -39,6 +39,9 @@ class AppRoutes {
   /// Alumni detail page - Individual alumni profile
   static const String alumniDetail = '/alumni/detail';
 
+  /// Mentees page - Alumni's list of accepted mentees
+  static const String mentees = '/mentees';
+
   /// Event detail page - Individual event information
   static const String eventDetail = '/event/detail';
 

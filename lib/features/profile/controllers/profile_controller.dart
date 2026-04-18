@@ -37,6 +37,12 @@ class ProfileController extends GetxController {
   final _isUpdating = false.obs;
   final _isUploadingPhoto = false.obs;
 
+  // Rewards
+  final _points = 0.obs;
+  final _pointsThisMonth = 0.obs;
+  final _rewardCheckpoint = 0.obs;
+  final _timesRedeemed = 0.obs;
+
   int get myEventsCount => _myEventsCount.value;
   int get savedCount => _savedCount.value;
   int get downloadsCount => _downloadsCount.value;
@@ -45,6 +51,16 @@ class ProfileController extends GetxController {
   bool get isUpdating => _isUpdating.value;
   bool get isUploadingPhoto => _isUploadingPhoto.value;
 
+  int get points => _points.value;
+  int get pointsThisMonth => _pointsThisMonth.value;
+  int get timesRedeemed => _timesRedeemed.value;
+  /// Points earned since the last reward claim
+  int get netPoints => (_points.value - _rewardCheckpoint.value).clamp(0, 99999);
+  /// Whether the user has an unused free-event registration waiting
+  bool get hasRewardClaim => netPoints >= 50;
+  /// Points still needed to unlock the next free event (0 when claim is ready)
+  int get pointsToNextClaim => hasRewardClaim ? 0 : 50 - netPoints;
+
   Map<String, dynamic>? get user => Get.find<AuthController>().currentUser;
 
   String get name => user?['full_name'] as String? ?? '';
@@ -52,7 +68,7 @@ class ProfileController extends GetxController {
   String get phone => user?['phone_number'] as String? ?? '';
   String get bio => user?['bio'] as String? ?? '';
   String get role => _formatRole(user?['role'] as String? ?? '');
-  String get institution => user?['institution'] as String? ?? 'Knowledge College';
+  String get institution => user?['institution'] as String? ?? 'Knowledge Center';
   String get level => _formatLevel(user?['level'] as String? ?? '');
   String get classYear {
     final cy = user?['class_year'];
@@ -91,6 +107,21 @@ class ProfileController extends GetxController {
       _myEventsCount.value = (results[0] as List).length;
       _savedCount.value = (results[1] as List).length;
       _downloadsCount.value = (results[2] as List).length;
+
+      // Load reward points separately so a missing column doesn't block the rest
+      try {
+        final row = await Supabase.instance.client
+            .from('users')
+            .select('points, points_this_month, reward_checkpoint, times_redeemed')
+            .eq('id', userId)
+            .single();
+        _points.value          = row['points']            as int? ?? 0;
+        _pointsThisMonth.value = row['points_this_month'] as int? ?? 0;
+        _rewardCheckpoint.value= row['reward_checkpoint'] as int? ?? 0;
+        _timesRedeemed.value   = row['times_redeemed']    as int? ?? 0;
+      } catch (e) {
+        debugPrint('Rewards points load error: $e');
+      }
 
       await _loadRecentActivity(userId);
     } catch (e) {
@@ -165,6 +196,7 @@ class ProfileController extends GetxController {
     required String fullName,
     required String phone,
     String? bio,
+    String? level,
   }) async {
     try {
       _isUpdating.value = true;
@@ -175,6 +207,7 @@ class ProfileController extends GetxController {
         'full_name': fullName.trim(),
         'phone_number': phone.trim(),
         if (bio != null) 'bio': bio.trim(),
+        if (level != null && level.isNotEmpty) 'level': level,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', userId);
 

@@ -7,8 +7,14 @@ import 'package:kc_connect/core/theme/app_text_styles.dart';
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final Function(int)? onTap;
+  final int unreadChatCount;
 
-  const BottomNavBar({super.key, this.currentIndex = 0, this.onTap});
+  const BottomNavBar({
+    super.key,
+    this.currentIndex = 0,
+    this.onTap,
+    this.unreadChatCount = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +38,35 @@ class BottomNavBar extends StatelessWidget {
             labelStyle: AppTextStyles.caption.copyWith(color: AppColors.white),
           ),
           CurvedNavigationBarItem(
-            child: const Icon(Icons.chat, size: 30, color: AppColors.white),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.chat, size: 30, color: AppColors.white),
+                if (unreadChatCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppColors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        unreadChatCount > 99 ? '99+' : '$unreadChatCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             label: 'Learn',
             labelStyle: AppTextStyles.caption.copyWith(color: AppColors.white),
           ),

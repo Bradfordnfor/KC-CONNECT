@@ -21,7 +21,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _eventReminders = true;
   bool _resourceUpdates = false;
   bool _darkModeEnabled = false;
-  String _selectedLanguage = 'English';
 
   @override
   void initState() {
@@ -45,10 +44,6 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     }
 
-    final lang = user['language_preference'] as String?;
-    if (lang != null && lang.isNotEmpty) {
-      setState(() => _selectedLanguage = lang);
-    }
   }
 
   Future<void> _saveNotificationPrefs() async {
@@ -77,23 +72,6 @@ class _SettingsPageState extends State<SettingsPage> {
           .eq('id', userId);
     } catch (e) {
       debugPrint('Failed to save notification prefs: $e');
-    }
-  }
-
-  Future<void> _saveLanguage(String language) async {
-    try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      final sp = await SharedPreferences.getInstance();
-      await sp.setString('language', language);
-
-      await Supabase.instance.client
-          .from('users')
-          .update({'language_preference': language})
-          .eq('id', userId);
-    } catch (e) {
-      debugPrint('Failed to save language: $e');
     }
   }
 
@@ -293,13 +271,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Dark mode will be available in the next update!',
               );
             },
-          ),
-          const Divider(height: 1, indent: 60),
-          _buildSettingsTile(
-            icon: Icons.language_outlined,
-            title: 'Language',
-            subtitle: _selectedLanguage,
-            onTap: _showLanguageDialog,
           ),
           const Divider(height: 1, indent: 60),
           _buildSettingsTile(
@@ -539,35 +510,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showLanguageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Select Language',
-          style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: ['English', 'French', 'Pidgin'].map((lang) {
-            return RadioListTile<String>(
-              title: Text(lang),
-              value: lang,
-              groupValue: _selectedLanguage,
-              activeColor: AppColors.blue,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedLanguage = value);
-                  _saveLanguage(value);
-                  Navigator.pop(context);
-                }
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
+
 
   void _showClearCacheDialog() {
     showDialog(

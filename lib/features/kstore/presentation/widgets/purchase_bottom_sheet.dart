@@ -6,6 +6,7 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/core/services/rewards_service.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/kstore/controllers/store_controller.dart';
 import 'package:kc_connect/features/payment/controllers/payment_controller.dart';
@@ -231,192 +232,223 @@ class _PurchaseBottomSheetState extends State<PurchaseBottomSheet> {
       return;
     }
 
-    // Close bottom sheet before showing processing dialog
+    // Close bottom sheet before showing processing dialog.
+    // Capture all widget/state values now — widget is unmounted after pop.
+    final productTitle = widget.product.title;
+    final productPrice = widget.product.price;
+    final productId = widget.product.id;
+    final productStock = widget.product.stock;
+    final paymentMethod = _paymentMethod;
+    final formattedPhone = CampayService.formatPhone(phone);
+    final externalRef =
+        'ord_${productId}_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+
     if (mounted) Navigator.pop(context);
 
     final result = await PaymentController.to.processPayment(
       phone: phone,
-      amount: widget.product.price,
-      description: 'KC Store: ${widget.product.title}',
-      externalRef:
-          'ord_${widget.product.id}_${userId}_${DateTime.now().millisecondsSinceEpoch}',
+      amount: productPrice,
+      description: 'KC Store: $productTitle',
+      externalRef: externalRef,
     );
 
     if (result == PaymentResult.success) {
-      try {
-        final now = DateTime.now();
-        final orderNumber =
-            'KC-${now.millisecondsSinceEpoch.toString().substring(7)}';
+      final now = DateTime.now();
+      final orderNumber =
+          'KC-${now.millisecondsSinceEpoch.toString().substring(7)}';
 
-        // Insert order
+      // ── Step 1: Create the order row (critical — fail fast if this fails) ──
+      String orderId;
+      try {
         final orderRes = await Supabase.instance.client
             .from('orders')
             .insert({
               'user_id': userId,
               'order_number': orderNumber,
               'status': 'processing',
-              'subtotal': widget.product.price,
+              'subtotal': productPrice,
               'tax': 0,
               'shipping_cost': 0,
               'discount': 0,
-              'total': widget.product.price,
+              'total': productPrice,
               'currency': 'XAF',
               'payment_status': 'paid',
-              'payment_method': _paymentMethod,
-              'payment_phone_number': CampayService.formatPhone(phone),
+              'payment_method': paymentMethod,
+              'payment_phone_number': formattedPhone,
               'paid_at': now.toIso8601String(),
               'ordered_at': now.toIso8601String(),
-              'created_at': now.toIso8601String(),
-              'updated_at': now.toIso8601String(),
             })
             .select('id')
             .single();
+        orderId = orderRes['id'] as String;
+      } catch (e) {
+        debugPrint('Order row creation failed: $e');
+        AppSnackbar.error(
+          'Order Not Recorded',
+          'Your payment was received but the order could not be saved. '
+          'Please contact support with reference: $orderNumber',
+        );
+        return;
+      }
 
-        final orderId = orderRes['id'] as String;
-
-        // Insert order item
+      // ── Step 2: Order items (non-critical — order exists, log and continue) ──
+      try {
         await Supabase.instance.client.from('order_items').insert({
           'order_id': orderId,
-          'product_id': widget.product.id,
-          'product_name': widget.product.title,
-          'unit_price': widget.product.price,
+          'product_id': productId,
+          'product_name': productTitle,
+          'unit_price': productPrice,
           'quantity': 1,
-          'subtotal': widget.product.price,
-          'created_at': now.toIso8601String(),
+          'subtotal': productPrice,
         });
+      } catch (e) {
+        debugPrint('order_items insert failed (order $orderNumber already created): $e');
+      }
 
-        // Decrement stock
-        final newStock = (widget.product.stock - 1).clamp(0, 9999);
+      // ── Step 3: Decrement stock ──
+      try {
+        final newStock = (productStock - 1).clamp(0, 9999);
         await Supabase.instance.client
             .from('products')
-            .update({'stock_quantity': newStock}).eq('id', widget.product.id);
+            .update({'stock_quantity': newStock}).eq('id', productId);
+      } catch (e) {
+        debugPrint('Stock decrement failed: $e');
+      }
 
-        // Refresh store list
-        if (Get.isRegistered<StoreController>()) {
-          Get.find<StoreController>().loadProducts();
+      // ── Step 4: Award points ──
+      try {
+        await RewardsService.awardPoints(userId, 5);
+      } catch (e) {
+        debugPrint('Points award failed: $e');
+      }
+
+      // ── Step 5: Refresh store ──
+      if (Get.isRegistered<StoreController>()) {
+        Get.find<StoreController>().loadProducts();
+      }
+
+      // ── Step 6: Notify admins ──
+      try {
+        final user = Get.find<AuthController>().currentUser;
+        final buyerName = user?['full_name'] as String? ?? 'Unknown';
+        final buyerPhone = user?['phone_number'] as String? ?? 'N/A';
+        final buyerEmail = user?['email'] as String? ?? 'N/A';
+
+        final admins = await Supabase.instance.client
+            .from('users')
+            .select('id')
+            .eq('role', 'admin');
+
+        if ((admins as List).isNotEmpty) {
+          final notifications = admins
+              .map((admin) => {
+                    'user_id': admin['id'],
+                    'title': 'New Product Order',
+                    'message':
+                        '$buyerName ordered $productTitle (XAF ${productPrice.toStringAsFixed(0)}). Contact: $buyerPhone | $buyerEmail.',
+                    'type': 'announcement',
+                    'priority': 'high',
+                    'is_read': false,
+                  })
+              .toList();
+          await Supabase.instance.client
+              .from('notifications')
+              .insert(notifications);
         }
+      } catch (e) {
+        debugPrint('Admin notification failed: $e');
+      }
 
-        // Notify all admins of the new order
-        try {
-          final user = Get.find<AuthController>().currentUser;
-          final buyerName = user?['full_name'] as String? ?? 'Unknown';
-          final buyerPhone = user?['phone_number'] as String? ?? 'N/A';
-          final buyerEmail = user?['email'] as String? ?? 'N/A';
-
-          final admins = await Supabase.instance.client
-              .from('users')
-              .select('id')
-              .eq('role', 'admin');
-
-          if ((admins as List).isNotEmpty) {
-            final notifications = admins.map((admin) => {
-              'user_id': admin['id'],
-              'title': 'New Product Order',
-              'message': '$buyerName ordered ${widget.product.title} (XAF ${widget.product.price.toStringAsFixed(0)}). Contact: $buyerPhone | $buyerEmail.',
-              'type': 'announcement',
-              'priority': 'high',
-              'is_read': false,
-              'created_at': now.toIso8601String(),
-            }).toList();
-            await Supabase.instance.client.from('notifications').insert(notifications);
-          }
-        } catch (_) {}
-
-        // Show success modal
-        Get.dialog(
-          Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE8F5E9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.check_circle_outline,
-                        color: Colors.green, size: 36),
+      // Show success modal only when order is confirmed in DB.
+      Get.dialog(
+        Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE8F5E9),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Order Confirmed!',
-                    style: AppTextStyles.subHeading.copyWith(
-                      color: AppColors.blue,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: const Icon(Icons.check_circle_outline,
+                      color: Colors.green, size: 36),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Order Confirmed!',
+                  style: AppTextStyles.subHeading.copyWith(
+                    color: AppColors.blue,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Your order #$orderNumber for ${widget.product.title} has been received.',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Your order #$orderNumber for $productTitle has been received.',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.5,
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.blue.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.blue.withValues(alpha: 0.15),
-                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.blue.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.blue.withValues(alpha: 0.15),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time,
-                            color: AppColors.blue, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Our team will contact you within 24 hours to arrange delivery.',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.blue,
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          color: AppColors.blue, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Our team will contact you within 24 hours to arrange delivery.',
+                          style: AppTextStyles.body.copyWith(
+                            color: AppColors.blue,
+                            fontSize: 13,
+                            height: 1.4,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Get.back(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.blue,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
                       ),
-                      child: const Text('Got it',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Get.back(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.blue,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Got it',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ),
-          barrierDismissible: false,
-        );
-      } catch (e) {
-        AppSnackbar.error(
-          'Order Error',
-          'Payment received but order could not be created. Please contact support.',
-        );
-      }
+        ),
+        barrierDismissible: false,
+      );
     }
   }
 

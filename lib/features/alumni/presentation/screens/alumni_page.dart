@@ -80,22 +80,22 @@ class AlumniPage extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Interact with other KCians around the globe',
+                          'Connect with experienced KC alumni who can guide your journey',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.white,
                             fontSize: 11,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 25),
+                        const SizedBox(height: 10),
                         Text(
-                          'Get rewarded for global impact and consistency',
+                          'Get personalized advice and mentorship support',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.white,
                             fontSize: 11,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],

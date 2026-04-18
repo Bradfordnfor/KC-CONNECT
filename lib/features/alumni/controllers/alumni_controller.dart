@@ -1,6 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
+import 'package:kc_connect/core/theme/app_colors.dart';
+import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/common/snackbar.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -59,7 +61,7 @@ class AlumniController extends GetxController {
         .from('users')
         .select(
           'id, full_name, profile_image_url, graduation_year, '
-          'current_position, school, bio, career, vision, '
+          'institution, bio, career, vision, '
           'available_for_mentorship, email, max_mentees, '
           'expertise, total_mentorship_given, total_likes',
         )
@@ -281,6 +283,14 @@ class AlumniController extends GetxController {
 
       if (isMentorshipButtonDisabled(alumniId)) return;
 
+      // Bio check — alumni need this to make an informed decision
+      final me = Get.find<AuthController>().currentUser;
+      final currentBio = (me?['bio'] as String? ?? '').trim();
+      if (currentBio.isEmpty) {
+        final filled = await _promptForBio();
+        if (!filled) return; // user cancelled
+      }
+
       if (!alumni.isAvailableForMentorship) {
         AppSnackbar.warning(
           'Not Available',
@@ -340,9 +350,9 @@ class AlumniController extends GetxController {
       final requestId = response['id'] as String;
 
       // Notify the alumni — include student bio for informed decision-making
-      final me = Get.find<AuthController>().currentUser;
-      final studentName = me?['full_name'] as String? ?? 'A student';
-      final studentBio = (me?['bio'] as String? ?? '').trim();
+      final myProfile = Get.find<AuthController>().currentUser;
+      final studentName = myProfile?['full_name'] as String? ?? 'A student';
+      final studentBio = (myProfile?['bio'] as String? ?? '').trim();
 
       await Supabase.instance.client.from('notifications').insert({
         'user_id': alumniId,
@@ -419,6 +429,79 @@ class AlumniController extends GetxController {
     }
   }
 
+  /// Shows a dialog asking the student to fill their bio before requesting
+  /// mentorship. Returns true when the bio is saved, false if cancelled.
+  Future<bool> _promptForBio() async {
+    final bioController = TextEditingController();
+    final result = await Get.dialog<bool>(
+      AlertDialog(
+        title: Text(
+          'Add Your Bio First',
+          style: AppTextStyles.subHeading.copyWith(color: AppColors.blue),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Alumni need to know a little about you before accepting a mentorship request. Please write a brief bio.',
+              style: AppTextStyles.body.copyWith(
+                  color: Colors.grey[700], height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: bioController,
+              maxLines: 4,
+              maxLength: 300,
+              decoration: InputDecoration(
+                hintText: 'e.g. I am a Grade 10 student passionate about science and engineering...',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                filled: true,
+                fillColor: AppColors.backgroundColor,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final bio = bioController.text.trim();
+              if (bio.isEmpty) {
+                AppSnackbar.warning('Required', 'Please write a short bio');
+                return;
+              }
+              final userId =
+                  Supabase.instance.client.auth.currentUser?.id;
+              if (userId == null) {
+                Get.back(result: false);
+                return;
+              }
+              await Supabase.instance.client
+                  .from('users')
+                  .update({'bio': bio})
+                  .eq('id', userId);
+              // Refresh local user profile so subsequent checks pass
+              await Get.find<AuthController>().refreshProfile();
+              Get.back(result: true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.blue,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Save & Continue'),
+          ),
+        ],
+      ),
+    );
+    bioController.dispose();
+    return result ?? false;
+  }
+
   List<AlumniModel> getAlumniByExpertise(String expertise) {
     return _allAlumni
         .where(
@@ -459,8 +542,8 @@ class AlumniController extends GetxController {
     return AlumniModel(
       id: row['id'] ?? '',
       name: row['full_name'] ?? '',
-      role: row['current_position'] ?? 'Alumni',
-      school: row['school'] ?? 'Knowledge College',
+      role: 'Alumni',
+      school: row['institution'] ?? 'Knowledge Center',
       classInfo: classYear != null ? 'Class of $classYear' : 'Alumni',
       imageUrl: row['profile_image_url'],
       bio: row['bio'] ?? '',

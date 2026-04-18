@@ -19,14 +19,12 @@ class AlumniProfileSetupSheet extends StatefulWidget {
 class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
   final _formKey = GlobalKey<FormState>();
 
-  // Maps directly to what the UI displays
-  final _bioController = TextEditingController();        // bio section
-  final _careerController = TextEditingController();     // career section
-  final _visionController = TextEditingController();     // vision section
-  final _fieldController = TextEditingController();      // card "role" line  → current_position
-  final _institutionController = TextEditingController(); // card "school" line → school
-  final _expertiseController = TextEditingController();  // for search/filter
-  final _graduationYearController = TextEditingController(); // optional
+  final _bioController = TextEditingController();
+  final _careerController = TextEditingController();
+  final _visionController = TextEditingController();
+  final _institutionController = TextEditingController();
+  final _expertiseController = TextEditingController();
+  final _graduationYearController = TextEditingController();
   final _maxMenteesController = TextEditingController(text: '3');
 
   bool _availableForMentorship = true;
@@ -45,8 +43,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
     _bioController.text = user['bio'] ?? '';
     _careerController.text = user['career'] ?? '';
     _visionController.text = user['vision'] ?? '';
-    _fieldController.text = user['current_position'] ?? '';
-    _institutionController.text = user['school'] ?? '';
+    _institutionController.text = user['institution'] ?? '';
     _availableForMentorship = user['available_for_mentorship'] ?? true;
     _maxMenteesController.text = (user['max_mentees'] ?? 3).toString();
 
@@ -66,7 +63,6 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
     _bioController.dispose();
     _careerController.dispose();
     _visionController.dispose();
-    _fieldController.dispose();
     _institutionController.dispose();
     _expertiseController.dispose();
     _graduationYearController.dispose();
@@ -87,7 +83,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
           ? <String>[]
           : expertiseRaw.split(',').map((e) => e.trim()).toList();
 
-      final maxMentees = int.tryParse(_maxMenteesController.text.trim()) ?? 3;
+      final maxMentees = (int.tryParse(_maxMenteesController.text.trim()) ?? 3).clamp(1, 10);
 
       final gradYearStr = _graduationYearController.text.trim();
       final gradYear = gradYearStr.isEmpty ? null : int.tryParse(gradYearStr);
@@ -96,8 +92,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
         'bio': _bioController.text.trim(),
         'career': _careerController.text.trim(),
         'vision': _visionController.text.trim(),
-        'current_position': _fieldController.text.trim(),
-        'school': _institutionController.text.trim(),
+        'institution': _institutionController.text.trim(),
         'available_for_mentorship': _availableForMentorship,
         'max_mentees': maxMentees,
         'expertise': expertiseList,
@@ -132,7 +127,6 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle bar
               Center(
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 12),
@@ -145,7 +139,6 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
                 ),
               ),
 
-              // Header
               Row(
                 children: [
                   const Icon(Icons.person_outline,
@@ -173,23 +166,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
               ),
               const SizedBox(height: 20),
 
-              // ── Field / Role ──────────────────────────────────────────
-              _label('Field / Role'),
-              _hint(
-                'What is your field of study or profession? '
-                'e.g. "Mechanical Engineering Graduate", "Nursing Student", '
-                '"Computer Science PhD Candidate"',
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _fieldController,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-                decoration: _deco('e.g. Mechanical Engineering Graduate'),
-              ),
-              const SizedBox(height: 16),
-
-              // ── Institution & Country ──────────────────────────────────
+              // ── Institution & Country ─────────────────────────────────
               _label('Current Institution & Country'),
               _hint(
                 'The university, company, or organisation you are currently '
@@ -220,7 +197,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: _deco('e.g. 2021'),
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null; // optional
+                  if (v == null || v.trim().isEmpty) return null;
                   final y = int.tryParse(v.trim());
                   if (y == null || y < 1950 || y > DateTime.now().year) {
                     return 'Enter a valid year';
@@ -316,7 +293,6 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Mentorship settings
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -376,6 +352,7 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
                                 if (!_availableForMentorship) return null;
                                 final n = int.tryParse(v ?? '');
                                 if (n == null || n < 1) return 'Min 1';
+                                if (n > 10) return 'Max 10';
                                 return null;
                               },
                               decoration: _deco('3').copyWith(
@@ -392,7 +369,6 @@ class _AlumniProfileSetupSheetState extends State<AlumniProfileSetupSheet> {
               ),
               const SizedBox(height: 24),
 
-              // Save button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

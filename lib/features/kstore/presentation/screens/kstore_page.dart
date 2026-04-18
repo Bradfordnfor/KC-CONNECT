@@ -1,6 +1,7 @@
 // lib/features/store/presentation/screens/store_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:kc_connect/core/models/promo_model.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/carousel_widget.dart';
@@ -11,6 +12,7 @@ import 'package:kc_connect/core/widgets/empty_state.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/kstore/controllers/store_controller.dart';
 import 'package:kc_connect/features/kstore/presentation/widgets/add_product_modal.dart';
+import 'package:kc_connect/features/kstore/presentation/widgets/manage_promos_sheet.dart';
 import 'package:kc_connect/features/kstore/presentation/widgets/product_detail_dialog.dart';
 import 'package:kc_connect/core/widgets/search_bar.dart';
 
@@ -28,7 +30,7 @@ class KstorePage extends StatelessWidget {
           child: SafeArea(
             child: Column(
               children: [
-                _buildPriceBannerCarousel(),
+                _buildPriceBannerCarousel(context),
                 const SizedBox(height: 16),
                 _buildListingsHeaderWithSearch(),
                 const SizedBox(height: 16),
@@ -55,20 +57,67 @@ class KstorePage extends StatelessWidget {
     );
   }
 
-  Widget _buildPriceBannerCarousel() {
-    return CarouselWidget(
-      height: 100,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      autoPlay: true,
-      autoPlayDuration: const Duration(seconds: 5),
-      showIndicators: true,
-      items: [
+  Widget _buildPriceBannerCarousel(BuildContext context) {
+    return Obx(() {
+      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+      final isAdmin = role == 'admin';
+      final promos = controller.promos;
+
+      final items = promos.isNotEmpty
+          ? promos.map((p) => _buildPriceBanner(
+                icon: PromoModel.iconData(p.iconName),
+                label: p.label,
+                originalPrice: p.originalPrice,
+                salePrice: p.salePrice,
+                badge: p.badge,
+              )).toList()
+          : _defaultBanners();
+
+      return Stack(
+        children: [
+          CarouselWidget(
+            height: 100,
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            autoPlay: true,
+            autoPlayDuration: const Duration(seconds: 5),
+            showIndicators: true,
+            items: items,
+          ),
+          if (isAdmin)
+            Positioned(
+              top: 8,
+              right: 16,
+              child: GestureDetector(
+                onTap: () => showManagePromosSheet(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.edit_outlined, size: 16, color: AppColors.blue),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
+
+  List<Widget> _defaultBanners() => [
         _buildPriceBanner(
           icon: Icons.checkroom,
           label: 'KC T-SHIRTS',
           originalPrice: 'XAF 5,500',
           salePrice: 'XAF 3,500',
-          badge: 'HOT DEAL',
+          badge: 'NEW',
         ),
         _buildPriceBanner(
           icon: Icons.dry_cleaning,
@@ -84,9 +133,7 @@ class KstorePage extends StatelessWidget {
           salePrice: 'XAF 4,999',
           badge: 'SALE',
         ),
-      ],
-    );
-  }
+      ];
 
   Widget _buildPriceBanner({
     required IconData icon,
@@ -132,7 +179,6 @@ class KstorePage extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Strikethrough original price
                     Flexible(
                       child: Text(
                         originalPrice,
@@ -147,7 +193,6 @@ class KstorePage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Highlighted sale price
                     Flexible(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

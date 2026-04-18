@@ -17,6 +17,7 @@ import 'package:kc_connect/features/events/presentation/screens/events_page.dart
 import 'package:kc_connect/features/kstore/presentation/screens/kstore_page.dart';
 import 'package:kc_connect/features/alumni/presentation/screens/alumni_page.dart';
 import 'package:kc_connect/features/alumni/presentation/screens/alumni_details_page.dart';
+import 'package:kc_connect/features/alumni/presentation/screens/mentees_page.dart';
 import 'package:kc_connect/features/profile/presentation/screens/profile_page.dart';
 import 'package:kc_connect/features/notifications/presentation/screens/news_page.dart';
 import 'package:kc_connect/features/help/presentation/screens/help_page.dart';
@@ -89,6 +90,13 @@ class AppPages {
     GetPage(
       name: AppRoutes.alumni,
       page: () => const AlumniPage(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+
+    GetPage(
+      name: AppRoutes.mentees,
+      page: () => const MenteesPage(),
       transition: Transition.rightToLeft,
       transitionDuration: const Duration(milliseconds: 300),
     ),

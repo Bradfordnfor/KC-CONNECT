@@ -4,6 +4,7 @@ import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
+import 'package:kc_connect/core/services/rewards_service.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/events/controllers/events_controller.dart';
 import 'package:kc_connect/core/services/campay_service.dart';
@@ -282,6 +283,9 @@ class _EventPaymentBottomSheetState extends State<EventPaymentBottomSheet> {
               .update({'current_registrations': current}).eq(
                   'id', widget.eventId);
         });
+
+        // Award 10 points for registering for a paid event
+        await RewardsService.awardPoints(userId, 10);
 
         // Refresh events list to reflect new registration
         if (Get.isRegistered<EventsController>()) {

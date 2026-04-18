@@ -57,15 +57,19 @@ class _InAppPdfViewerState extends State<InAppPdfViewer> {
       _error = null;
     });
     try {
-      final response = await http.get(Uri.parse(widget.url!));
-      if (response.statusCode != 200) {
-        throw Exception('Server returned ${response.statusCode}');
+      final dir = await getApplicationDocumentsDirectory();
+      // Stable filename derived from URL so the same file is never downloaded twice
+      final cacheKey = widget.url!.hashCode.toRadixString(16);
+      final file = File('${dir.path}/kc_pdf_$cacheKey.pdf');
+
+      if (!await file.exists()) {
+        final response = await http.get(Uri.parse(widget.url!));
+        if (response.statusCode != 200) {
+          throw Exception('Server returned ${response.statusCode}');
+        }
+        await file.writeAsBytes(response.bodyBytes);
       }
-      final dir = await getTemporaryDirectory();
-      final file = File(
-        '${dir.path}/kc_doc_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(response.bodyBytes);
+
       if (mounted) setState(() { _localPath = file.path; _isLoading = false; });
     } catch (e) {
       if (mounted) {

@@ -29,6 +29,18 @@ class AuthController extends GetxController {
       if (session != null && event.event == AuthChangeEvent.signedIn) {
         _isAuthenticated.value = true;
         await _loadUserProfile(session.user.id);
+        // Guard: if the profile is missing the account was deleted externally.
+        // Sign out immediately so the user lands on login, not an empty screen.
+        if (_currentUser.value == null) {
+          debugPrint('signedIn event but profile missing — signing out.');
+          await Supabase.instance.client.auth.signOut();
+          return;
+        }
+        // If this is a student whose level is missing from public.users (e.g.
+        // the DB trigger did not map it from user_metadata, or the explicit
+        // update was skipped because email confirmation was required), recover
+        // it from the Supabase user metadata so chatroom access is correct.
+        await _recoverStudentLevel(session);
         final role = _currentUser.value?['role'] as String? ?? '';
         if (role == 'admin') {
           if (Get.currentRoute != AppRoutes.admin) {
@@ -63,6 +75,14 @@ class AuthController extends GetxController {
       if (session != null) {
         _isAuthenticated.value = true;
         await _loadUserProfile(session.user.id);
+        // If the profile is missing after all retries the auth user was deleted
+        // from the dashboard (or the public.users row was removed). Sign out so
+        // the user lands on the login screen instead of an empty dashboard.
+        if (_currentUser.value == null) {
+          debugPrint('Session exists but profile missing — signing out.');
+          await Supabase.instance.client.auth.signOut();
+          _isAuthenticated.value = false;
+        }
       } else {
         _isAuthenticated.value = false;
       }
@@ -83,7 +103,7 @@ class AuthController extends GetxController {
         final response = await Supabase.instance.client
             .from('users')
             .select(
-              'id, email, full_name, phone_number, profile_image_url, role, is_super_admin, status, institution, school, level, class_year, graduation_year, current_position, company, bio, career, vision, expertise, available_for_mentorship, max_mentees, mentorship_areas, linkedin_url, twitter_url, website_url, total_likes, total_resources_uploaded, total_events_created, total_mentorship_given, subscription_status, subscription_start_date, subscription_end_date, subscription_auto_renew, notification_preferences, language_preference, theme_preference, created_at, updated_at, last_login_at, login_count',
+              'id, email, full_name, phone_number, profile_image_url, role, is_super_admin, status, institution, level, graduation_year, bio, career, vision, expertise, available_for_mentorship, max_mentees, mentorship_areas, total_likes, total_resources_uploaded, total_events_created, total_mentorship_given, subscription_status, subscription_start_date, subscription_end_date, subscription_auto_renew, notification_preferences, created_at, updated_at, points, reward_checkpoint, times_redeemed, points_this_month, points_month, chat_grade10_read_at, chat_grade12_read_at',
             )
             .eq('id', userId)
             .maybeSingle();
@@ -144,12 +164,15 @@ class AuthController extends GetxController {
     required String phoneNumber,
     required String password,
     required String role,
+    String? level, // student class: form_4 | form_5 | lower_sixth | upper_sixth
   }) async {
     try {
       _isLoading.value = true;
 
       final requiresOTP =
-          role.toLowerCase() == 'staff' || role.toLowerCase() == 'admin';
+          role.toLowerCase() == 'staff' ||
+          role.toLowerCase() == 'admin' ||
+          role.toLowerCase() == 'alumni';
 
       if (requiresOTP) {
         final otp = _generateOTP();
@@ -164,6 +187,13 @@ class AuthController extends GetxController {
             .eq('email', email)
             .eq('is_active', true);
 
+        String purpose;
+        switch (role.toLowerCase()) {
+          case 'admin': purpose = 'admin_signup'; break;
+          case 'alumni': purpose = 'alumni_signup'; break;
+          default: purpose = 'staff_signup';
+        }
+
         final inserted = await Supabase.instance.client
             .from('pending_signups')
             .insert({
@@ -173,7 +203,7 @@ class AuthController extends GetxController {
               'role': role.toLowerCase(),
               'otp': otp,
               'password_hash': passwordHash,
-              'purpose': role.toLowerCase() == 'admin' ? 'admin_signup' : 'staff_signup',
+              'purpose': purpose,
               'is_active': true,
               'created_at': DateTime.now().toIso8601String(),
               'expires_at': DateTime.now().add(const Duration(days: 3)).toIso8601String(),
@@ -215,6 +245,7 @@ class AuthController extends GetxController {
             'full_name': fullName,
             'phone_number': phoneNumber,
             'role': role.toLowerCase(), // trigger expects lowercase
+            if (level != null && level.isNotEmpty) 'level': level,
           },
         );
 
@@ -224,9 +255,23 @@ class AuthController extends GetxController {
         }
 
         if (response.session != null) {
-          // No email confirmation needed (e.g. auto-confirm enabled in dashboard)
+          // Load profile first — the retry loop guarantees the DB trigger row
+          // is committed before we proceed, so the level update below will
+          // always find the row and never silently affect 0 rows.
           _isAuthenticated.value = true;
           await _loadUserProfile(response.user!.id);
+          if (level != null && level.isNotEmpty) {
+            try {
+              await Supabase.instance.client
+                  .from('users')
+                  .update({'level': level})
+                  .eq('id', response.user!.id);
+              // Reload so canSendInRoom immediately has the correct level.
+              await _loadUserProfile(response.user!.id);
+            } catch (e) {
+              debugPrint('Level update after signup (non-critical): $e');
+            }
+          }
           _isLoading.value = false;
           return {'success': true, 'requiresOTP': false};
         }
@@ -375,6 +420,30 @@ class AuthController extends GetxController {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /// If a student's level is missing from public.users (e.g. email-confirmation
+  /// path where the explicit update was skipped, or a trigger mapping gap),
+  /// recover it from the Supabase user_metadata written at sign-up time.
+  Future<void> _recoverStudentLevel(Session session) async {
+    final profile = _currentUser.value;
+    if (profile == null) return;
+    final role = profile['role'] as String? ?? '';
+    if (role != 'student') return;
+    final storedLevel = profile['level'] as String? ?? '';
+    if (storedLevel.isNotEmpty) return; // level already in DB — nothing to do
+    final metaLevel = session.user.userMetadata?['level'] as String? ?? '';
+    if (metaLevel.isEmpty) return; // no fallback available
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({'level': metaLevel})
+          .eq('id', session.user.id);
+      await _loadUserProfile(session.user.id);
+      debugPrint('Student level recovered from metadata: $metaLevel');
+    } catch (e) {
+      debugPrint('Level recovery failed (non-critical): $e');
+    }
+  }
 
   /// Converts raw Supabase/Postgres exceptions into user-friendly messages.
   String _friendlySignupError(Object e) {

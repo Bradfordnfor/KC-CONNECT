@@ -5,6 +5,7 @@ import 'package:kc_connect/core/models/product_model.dart';
 import 'package:kc_connect/core/theme/app_colors.dart';
 import 'package:kc_connect/core/theme/app_text_styles.dart';
 import 'package:kc_connect/core/widgets/buttons/primary_button.dart';
+import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:kc_connect/features/kstore/controllers/store_controller.dart';
 import 'package:kc_connect/features/kstore/presentation/widgets/purchase_bottom_sheet.dart';
 
@@ -24,9 +25,29 @@ class ProductDetailDialog extends StatelessWidget {
     );
   }
 
+  void _confirmDelete(BuildContext context) {
+    final storeController = Get.find<StoreController>();
+    Get.dialog(AlertDialog(
+      title: const Text('Delete Product?'),
+      content: Text('Remove "${product.title}"? This cannot be undone.'),
+      actions: [
+        TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () {
+            Get.back();
+            Get.back();
+            storeController.deleteProduct(product.id);
+          },
+          child: const Text('Delete', style: TextStyle(color: AppColors.red)),
+        ),
+      ],
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final storeController = Get.find<StoreController>();
+    final isAdmin =
+        (Get.find<AuthController>().currentUser?['role'] as String?) == 'admin';
 
     return Container(
       constraints: BoxConstraints(
@@ -155,6 +176,25 @@ class ProductDetailDialog extends StatelessWidget {
                     );
                   },
                 ),
+
+                if (isAdmin) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.red, size: 18),
+                    label: const Text(
+                      'Delete Product',
+                      style: TextStyle(color: AppColors.red),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                      side: const BorderSide(color: AppColors.red),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () => _confirmDelete(context),
+                  ),
+                ],
               ],
             ),
           ),

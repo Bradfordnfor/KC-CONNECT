@@ -24,6 +24,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
   String _category = 'O/L';
   PlatformFile? _pickedFile;
   bool _isUploading = false;
+  final _customSubjectController = TextEditingController();
 
   final _subjects = [
     'Mathematics',
@@ -35,6 +36,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
     'History',
     'Geography',
     'Self Development',
+    'Others',
   ];
 
   final _categories = ['O/L', 'A/L', 'Other Books'];
@@ -61,6 +63,15 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
               items: _subjects,
               onChanged: (v) => setState(() => _subject = v!),
             ),
+            if (_subject == 'Others') ...[
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Custom Subject',
+                hint: 'e.g. Computer Science, French...',
+                controller: _customSubjectController,
+                validator: (v) => Validators.required(v, 'Subject'),
+              ),
+            ],
             const SizedBox(height: 16),
 
             _buildDropdown(
@@ -190,6 +201,10 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_subject == 'Others' && _customSubjectController.text.trim().isEmpty) {
+      AppSnackbar.error('Missing Info', 'Please enter a custom subject name');
+      return;
+    }
     if (_pickedFile == null || _pickedFile!.bytes == null) {
       AppSnackbar.error('No File', 'Please select a file to upload');
       return;
@@ -233,7 +248,9 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
 
       await Supabase.instance.client.from('resources').insert({
         'title': _titleController.text.trim(),
-        'subject': _subject,
+        'subject': _subject == 'Others'
+            ? _customSubjectController.text.trim()
+            : _subject,
         'category': _category,
         'description': _descriptionController.text.trim(),
         'file_url': publicUrl,
@@ -261,6 +278,7 @@ class _UploadResourceModalState extends State<UploadResourceModal> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _customSubjectController.dispose();
     super.dispose();
   }
 }

@@ -17,6 +17,7 @@ class EventModel {
   final bool isRegistered;
   final bool isFeatured;
   final double registrationFee;
+  final String? organizedBy;
 
   EventModel({
     required this.id,
@@ -34,6 +35,7 @@ class EventModel {
     this.isRegistered = false,
     this.isFeatured = false,
     this.registrationFee = 0.0,
+    this.organizedBy,
   });
 
   bool get isPaid => registrationFee > 0;
@@ -117,6 +119,7 @@ class EventModel {
     bool? isRegistered,
     bool? isFeatured,
     double? registrationFee,
+    String? organizedBy,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -134,6 +137,7 @@ class EventModel {
       isRegistered: isRegistered ?? this.isRegistered,
       isFeatured: isFeatured ?? this.isFeatured,
       registrationFee: registrationFee ?? this.registrationFee,
+      organizedBy: organizedBy ?? this.organizedBy,
     );
   }
 

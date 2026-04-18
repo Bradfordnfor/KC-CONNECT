@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:kc_connect/core/models/message_model.dart';
+import 'package:kc_connect/core/controllers/navigation_controller.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -70,6 +71,10 @@ class LearnController extends GetxController {
   final _errorMessage = ''.obs;
   final _replyingTo = Rxn<MessageModel>();
 
+  // Unread message counts (per room)
+  final _unreadGrade10 = 0.obs;
+  final _unreadGrade12 = 0.obs;
+
   // Text controllers
   final messageController = TextEditingController();
 
@@ -119,11 +124,132 @@ class LearnController extends GetxController {
   List<PinnedChatMessage> pinnedForRoom(String room) =>
       room == 'grade10' ? _grade10Pinned.toList() : _grade12Pinned.toList();
 
+  // ─── Access & unread ──────────────────────────────────────────────────────
+
+  /// True when the current user may send messages in [room].
+  /// Students are limited to the room matching their class level.
+  /// Staff, alumni, and admin can send in both rooms.
+  bool canSendInRoom(String room) {
+    final user = Get.find<AuthController>().currentUser;
+    final role = user?['role'] as String? ?? '';
+    if (role != 'student') return true; // alumni / staff / admin → both rooms
+
+    // DB level takes precedence. Fall back to Supabase auth user_metadata when
+    // the DB row has an empty level — this happens when the handle_new_user
+    // trigger does not copy the level field from user_metadata.
+    var level = user?['level'] as String? ?? '';
+    if (level.isEmpty) {
+      level = Supabase.instance.client.auth.currentUser
+              ?.userMetadata?['level'] as String? ?? '';
+    }
+
+    if (room == 'grade10') return level == 'form_4' || level == 'form_5';
+    if (room == 'grade12') return level == 'lower_sixth' || level == 'upper_sixth';
+    return false;
+  }
+
+  bool get canSendInCurrentRoom => canSendInRoom(currentRoom);
+
+  /// Total unread count for rooms the user can send in.
+  /// Reading .value inside Obx makes this reactive.
+  int get unreadCount {
+    final user = Get.find<AuthController>().currentUser;
+    final role = user?['role'] as String? ?? '';
+    if (role != 'student') return _unreadGrade10.value + _unreadGrade12.value;
+    var level = user?['level'] as String? ?? '';
+    if (level.isEmpty) {
+      level = Supabase.instance.client.auth.currentUser
+              ?.userMetadata?['level'] as String? ?? '';
+    }
+    if (level == 'form_4' || level == 'form_5') return _unreadGrade10.value;
+    if (level == 'lower_sixth' || level == 'upper_sixth') return _unreadGrade12.value;
+    return 0;
+  }
+
+  bool _isLearnTabActive() {
+    try {
+      return Get.find<NavigationController>().currentIndex == 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ─── Load unread counts from DB ───────────────────────────────────────────
+
+  Future<void> _loadUnreadCounts() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      final row = await Supabase.instance.client
+          .from('users')
+          .select('chat_grade10_read_at, chat_grade12_read_at')
+          .eq('id', userId)
+          .single();
+
+      final g10ReadAt = row['chat_grade10_read_at'] as String?;
+      final g12ReadAt = row['chat_grade12_read_at'] as String?;
+
+      if (canSendInRoom('grade10')) {
+        if (g10ReadAt != null) {
+          final result = await Supabase.instance.client
+              .from('messages')
+              .select('id')
+              .eq('room', 'grade_10')
+              .eq('is_deleted', false)
+              .neq('sender_id', userId)
+              .gt('created_at', g10ReadAt);
+          _unreadGrade10.value = (result as List).length;
+        }
+        // If null → first visit, leave at 0; markCurrentRoomAsRead sets it.
+      }
+
+      if (canSendInRoom('grade12')) {
+        if (g12ReadAt != null) {
+          final result = await Supabase.instance.client
+              .from('messages')
+              .select('id')
+              .eq('room', 'grade_12')
+              .eq('is_deleted', false)
+              .neq('sender_id', userId)
+              .gt('created_at', g12ReadAt);
+          _unreadGrade12.value = (result as List).length;
+        }
+      }
+    } catch (e) {
+      debugPrint('Load unread counts error: $e');
+    }
+  }
+
+  // ─── Mark room as read ────────────────────────────────────────────────────
+
+  /// Call when the user actively opens the Learn tab or switches sub-tabs.
+  Future<void> markCurrentRoomAsRead() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    final room = currentRoom; // 'grade10' or 'grade12'
+    final column =
+        room == 'grade10' ? 'chat_grade10_read_at' : 'chat_grade12_read_at';
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({column: DateTime.now().toIso8601String()})
+          .eq('id', userId);
+      if (room == 'grade10') {
+        _unreadGrade10.value = 0;
+      } else {
+        _unreadGrade12.value = 0;
+      }
+    } catch (e) {
+      debugPrint('Mark room as read error: $e');
+    }
+  }
+
   @override
   void onInit() {
     super.onInit();
     loadMessages();
     loadPinnedMessages();
+    _loadUnreadCounts();
     _subscribeToRealtime();
   }
 
@@ -356,6 +482,17 @@ class LearnController extends GetxController {
             } else {
               _grade12Messages.add(msg);
             }
+
+            // Increment unread if user is not currently viewing this room
+            final isViewingThisRoom =
+                _isLearnTabActive() && currentRoom == room;
+            if (!isViewingThisRoom && msg.senderId != uid && canSendInRoom(room)) {
+              if (room == 'grade10') {
+                _unreadGrade10.value++;
+              } else {
+                _unreadGrade12.value++;
+              }
+            }
           },
         )
         // New pin
@@ -401,6 +538,7 @@ class LearnController extends GetxController {
       _currentTabIndex.value = index;
       messageController.clear();
       clearReply();
+      markCurrentRoomAsRead();
     }
   }
 

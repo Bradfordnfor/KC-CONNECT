@@ -14,7 +14,10 @@ import 'package:kc_connect/features/chat/presentation/screens/learn_page.dart';
 import 'package:kc_connect/features/events/presentation/screens/events_page.dart';
 import 'package:kc_connect/features/kstore/presentation/screens/kstore_page.dart';
 import 'package:kc_connect/features/alumni/presentation/widgets/alumni_profile_setup_sheet.dart';
+import 'package:kc_connect/features/chat/controllers/learn_controller.dart';
+import 'package:kc_connect/features/home/controllers/home_controller.dart';
 import 'package:kc_connect/features/notifications/controllers/notifications_controller.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -108,6 +111,25 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
+  /// Returns the unread chat count from LearnController (0 if not yet created).
+  /// Called inside an Obx so it tracks the underlying Rx values.
+  int _learnUnreadCount() {
+    if (!Get.isRegistered<LearnController>()) return 0;
+    return Get.find<LearnController>().unreadCount;
+  }
+
+  /// Intercepts nav taps so we can mark the chat room as read when the
+  /// user switches to the Learn tab (index 2).
+  void _handleNavTap(int index) {
+    navController.changePage(index);
+    if (index == 0 && Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().refreshDashboard();
+    }
+    if (index == 2 && Get.isRegistered<LearnController>()) {
+      Get.find<LearnController>().markCurrentRoomAsRead();
+    }
+  }
+
   void _checkSubscription() {
     final user = Get.find<AuthController>().currentUser;
     if (user == null) return;
@@ -131,6 +153,13 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    // When the keyboard is open, hide the nav bar so the body reaches the
+    // keyboard edge. LearnPage then adds SizedBox(height: viewInsets.bottom)
+    // at the bottom of its Column to push the input field flush with the
+    // keyboard top. resizeToAvoidBottomInset must stay false so that
+    // viewInsets.bottom inside the body equals the real keyboard height.
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isLargeScreen = constraints.maxWidth >= 600;
@@ -152,12 +181,15 @@ class _MainNavigationState extends State<MainNavigation> {
                 ),
               ],
             ),
-            bottomNavigationBar: Obx(
-              () => BottomNavBar(
-                currentIndex: navController.currentIndex,
-                onTap: navController.changePage,
-              ),
-            ),
+            bottomNavigationBar: keyboardOpen
+                ? null
+                : Obx(
+                    () => BottomNavBar(
+                      currentIndex: navController.currentIndex,
+                      unreadChatCount: _learnUnreadCount(),
+                      onTap: _handleNavTap,
+                    ),
+                  ),
           );
         } else {
           return Scaffold(
@@ -170,12 +202,15 @@ class _MainNavigationState extends State<MainNavigation> {
                 children: _pages,
               ),
             ),
-            bottomNavigationBar: Obx(
-              () => BottomNavBar(
-                currentIndex: navController.currentIndex,
-                onTap: navController.changePage,
-              ),
-            ),
+            bottomNavigationBar: keyboardOpen
+                ? null
+                : Obx(
+                    () => BottomNavBar(
+                      currentIndex: navController.currentIndex,
+                      unreadChatCount: _learnUnreadCount(),
+                      onTap: _handleNavTap,
+                    ),
+                  ),
           );
         }
       },
@@ -272,19 +307,34 @@ class _MainNavigationState extends State<MainNavigation> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 70,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.gradientColor,
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        size: 35,
-                        color: AppColors.white,
-                      ),
-                    ),
+                    Obx(() {
+                      final avatarUrl = Get.find<AuthController>()
+                          .currentUser?['profile_image_url'] as String?;
+                      return Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppColors.gradientColor,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: avatarUrl != null && avatarUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: avatarUrl,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => const Icon(
+                                  Icons.person,
+                                  size: 35,
+                                  color: AppColors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.person,
+                                size: 35,
+                                color: AppColors.white,
+                              ),
+                      );
+                    }),
                     const SizedBox(height: 16),
                     Obx(() {
                       final user = Get.find<AuthController>().currentUser;
@@ -345,6 +395,19 @@ class _MainNavigationState extends State<MainNavigation> {
                         onTap: () {
                           Navigator.pop(context);
                           Get.toNamed(AppRoutes.alumni);
+                        },
+                      );
+                    }),
+                    Obx(() {
+                      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+                      if (role != 'alumni') return const SizedBox.shrink();
+                      return _buildDrawerItem(
+                        context,
+                        icon: Icons.people,
+                        title: 'My Mentees',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Get.toNamed(AppRoutes.mentees);
                         },
                       );
                     }),

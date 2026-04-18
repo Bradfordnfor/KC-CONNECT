@@ -50,6 +50,10 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 24),
                 _buildQuickActionsGrid(navController),
                 const SizedBox(height: 24),
+                _buildOfTheMonthSection(controller),
+                const SizedBox(height: 24),
+                _buildLeaderboardSection(controller),
+                const SizedBox(height: 24),
                 _buildRecentResourcesSection(controller, navController),
                 const SizedBox(height: 24),
                 _buildActivitySection(controller),
@@ -121,28 +125,57 @@ class HomePage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Activity Summary
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.trending_up, color: AppColors.white, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    controller.getActivitySummary(),
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.white,
-                      fontSize: 12,
+          // Points + Activity row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.stars_rounded, color: Colors.amber, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${controller.getStat('userPoints')} pts',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.trending_up, color: AppColors.white, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          controller.getActivitySummary(),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -462,6 +495,240 @@ class HomePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ─── Of-the-Month ──────────────────────────────────────────────────────────
+
+  Widget _buildOfTheMonthSection(HomeController controller) {
+    return Obx(() {
+      final top = controller.ofTheMonth;
+      if (top == null) return const SizedBox.shrink();
+
+      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+      final label = role == 'alumni'
+          ? 'Alumni of the Month'
+          : role == 'staff'
+              ? 'Staff of the Month'
+              : 'Student of the Month';
+
+      final name      = top['full_name']           as String? ?? 'Unknown';
+      final pts       = top['points_this_month']   as int?    ?? 0;
+      final avatarUrl = top['profile_image_url'] as String?;
+
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: AppColors.gradientColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.red.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: AppColors.white.withValues(alpha: 0.3),
+              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+              child: avatarUrl == null
+                  ? Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: AppTextStyles.subHeading.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.emoji_events, color: Colors.amber, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.white.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    name,
+                    style: AppTextStyles.subHeading.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$pts pts this month',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.white.withValues(alpha: 0.85),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // ─── Leaderboard ───────────────────────────────────────────────────────────
+
+  Widget _buildLeaderboardSection(HomeController controller) {
+    return Obx(() {
+      final board = controller.leaderboard;
+      if (board.isEmpty) return const SizedBox.shrink();
+
+      final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+      final title = role == 'alumni'
+          ? 'Alumni Leaderboard'
+          : role == 'staff'
+              ? 'Staff Leaderboard'
+              : 'Student Leaderboard';
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Icon(Icons.leaderboard, color: AppColors.blue, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: AppTextStyles.subHeading.copyWith(
+                    color: AppColors.blue,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: board.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+              itemBuilder: (context, index) {
+                final entry     = board[index];
+                final name      = entry['full_name']           as String? ?? 'Unknown';
+                final pts       = entry['points']              as int?    ?? 0;
+                final avatarUrl = entry['profile_image_url'] as String?;
+                final rank      = index + 1;
+
+                final rankColor = rank == 1
+                    ? Colors.amber
+                    : rank == 2
+                        ? Colors.grey[400]!
+                        : rank == 3
+                            ? const Color(0xFFCD7F32)
+                            : AppColors.blue.withValues(alpha: 0.5);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Rank badge
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: rankColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$rank',
+                            style: AppTextStyles.caption.copyWith(
+                              color: rankColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Avatar
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: AppColors.blue.withValues(alpha: 0.12),
+                        backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                        child: avatarUrl == null
+                            ? Text(
+                                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.blue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      // Name
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Points
+                      Text(
+                        '$pts pts',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.blue,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    });
   }
 
   // Recent Resources Section - FIXED: Uses bottom nav index

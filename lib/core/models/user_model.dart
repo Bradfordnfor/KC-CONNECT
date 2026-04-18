@@ -96,7 +96,7 @@ class UserModel {
       phone: '+237 123 456 789',
       imageUrl: 'assets/images/kc-connect_icon.png',
       role: role ?? 'student',
-      institution: 'Knowledge College',
+      institution: 'Knowledge Center',
       level: 'Advanced Level',
       classYear: 'Class of 2024',
       joinedDate: DateTime(2024, 1, 15),

@@ -49,17 +49,19 @@ class ResourcesController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadResources();
+    _loadCachedResourceList(); // show instantly from cache
+    loadResources();            // then refresh from network
     loadFavorites();
     _loadDownloadedResources();
 
-    // Re-load favorites when a different user signs in so a previous user's
-    // saved list never leaks into the next session (controller is a singleton).
+    // Re-load per-user data when a different user signs in so state never leaks.
     Supabase.instance.client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn) {
         loadFavorites();
+        _loadDownloadedResources();
       } else if (event.event == AuthChangeEvent.signedOut) {
         _favoriteResources.value = [];
+        _downloadedResources.value = {};
         _applyFilters();
       }
     });
@@ -78,10 +80,38 @@ class ResourcesController extends GetxController {
 
       _allResources.value = (response as List).map(_fromRow).toList();
       _applyFilters();
-      _isLoading.value = false;
+      _saveResourceListCache(response);
     } catch (e) {
-      _errorMessage.value = 'Failed to load resources';
+      // Keep cached data visible; only show error if there's nothing to show
+      if (_allResources.isEmpty) {
+        _errorMessage.value = 'No internet connection. Pull to refresh when online.';
+      }
+    } finally {
       _isLoading.value = false;
+    }
+  }
+
+  Future<void> _loadCachedResourceList() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('resources_list_cache');
+      if (raw == null) return;
+      final list = jsonDecode(raw) as List;
+      if (_allResources.isEmpty) {
+        _allResources.value = list.map(_fromRow).toList();
+        _applyFilters();
+      }
+    } catch (e) {
+      debugPrint('Load resource cache error: $e');
+    }
+  }
+
+  Future<void> _saveResourceListCache(List rows) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('resources_list_cache', jsonEncode(rows));
+    } catch (e) {
+      debugPrint('Save resource cache error: $e');
     }
   }
 
@@ -102,10 +132,14 @@ class ResourcesController extends GetxController {
     }
   }
 
+  String get _downloadedKey =>
+      'downloaded_resources_${currentUserId ?? 'local'}';
+
   Future<void> _loadDownloadedResources() async {
     try {
+      _downloadedResources.value = {};
       final prefs = await SharedPreferences.getInstance();
-      final json = prefs.getString('downloaded_resources');
+      final json = prefs.getString(_downloadedKey);
       if (json == null) return;
       final raw = Map<String, String>.from(jsonDecode(json) as Map);
       // Verify files still exist on disk
@@ -277,8 +311,8 @@ class ResourcesController extends GetxController {
           .download(path);
 
       final dir = await getApplicationDocumentsDirectory();
-      final fileName = path.split('/').last;
-      final localFile = File('${dir.path}/$fileName');
+      final ext = path.contains('.') ? path.split('.').last : 'bin';
+      final localFile = File('${dir.path}/res_${resource.id}.$ext');
       await localFile.writeAsBytes(bytes);
 
       _downloadedResources[resource.id] = localFile.path;
@@ -298,7 +332,7 @@ class ResourcesController extends GetxController {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        'downloaded_resources',
+        _downloadedKey,
         jsonEncode(Map<String, String>.from(_downloadedResources)),
       );
     } catch (e) {

@@ -13,7 +13,7 @@ bool checkSubscriptionGate() {
   final user = Get.find<AuthController>().currentUser;
   if (user == null) return false;
   final role = user['role'] as String? ?? '';
-  if (role == 'admin' || role == 'staff') return false;
+  if (role == 'admin' || role == 'staff' || role == 'alumni') return false;
   final status = user['subscription_status'] as String? ?? 'free';
   bool needsSub = status != 'premium';
   if (!needsSub) {

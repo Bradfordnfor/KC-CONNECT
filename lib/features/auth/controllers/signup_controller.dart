@@ -21,14 +21,24 @@ class SignupController extends GetxController {
   final _obscurePassword = true.obs;
   final _obscureConfirmPassword = true.obs;
   final _selectedRole = 'Student'.obs;
+  final _selectedLevel = ''.obs;
 
   // Getters
   bool get isLoading => _isLoading.value;
   bool get obscurePassword => _obscurePassword.value;
   bool get obscureConfirmPassword => _obscureConfirmPassword.value;
   String get selectedRole => _selectedRole.value;
+  String get selectedLevel => _selectedLevel.value;
 
   final List<String> roles = ['Student', 'Alumni', 'Staff', 'Admin'];
+
+  // Student class options — value stored in DB, label shown in UI
+  static const List<Map<String, String>> studentLevels = [
+    {'value': 'form_4',      'label': 'Form 4'},
+    {'value': 'form_5',      'label': 'Form 5'},
+    {'value': 'lower_sixth', 'label': 'Lower Sixth'},
+    {'value': 'upper_sixth', 'label': 'Upper Sixth'},
+  ];
 
   @override
   void onInit() {
@@ -59,10 +69,13 @@ class SignupController extends GetxController {
     _obscureConfirmPassword.value = !_obscureConfirmPassword.value;
   }
 
-  // Change role
+  // Change role — also reset level when switching away from student
   void changeRole(String role) {
     _selectedRole.value = role;
+    if (role != 'Student') _selectedLevel.value = '';
   }
+
+  void changeLevel(String level) => _selectedLevel.value = level;
 
   // Validate form
   String? _validateForm() {
@@ -94,6 +107,10 @@ class SignupController extends GetxController {
       return 'Passwords do not match';
     }
 
+    if (_selectedRole.value == 'Student' && _selectedLevel.value.isEmpty) {
+      return 'Please select your class';
+    }
+
     return null;
   }
 
@@ -115,6 +132,7 @@ class SignupController extends GetxController {
         phoneNumber: phoneController.text.trim(),
         password: passwordController.text,
         role: _selectedRole.value,
+        level: _selectedRole.value == 'Student' ? _selectedLevel.value : null,
       );
 
       if (result['success'] == true) {

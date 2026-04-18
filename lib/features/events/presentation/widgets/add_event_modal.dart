@@ -16,18 +16,21 @@ class AddEventModal extends StatefulWidget {
 
 class _AddEventModalState extends State<AddEventModal> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
+  final _titleController       = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _meetingLinkController = TextEditingController();
+  final _venueController       = TextEditingController(); // Onsite only
+  final _meetingLinkController = TextEditingController(); // Online only
+  final _customTypeController  = TextEditingController();
 
-  String _eventType = 'workshop';
+  String _eventType    = 'workshop';
+  String _locationType = 'Onsite'; // 'Online' | 'Onsite'
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   bool _isSubmitting = false;
 
-  // DB-accepted event types (lowercase)
-  final _eventTypes = ['workshop', 'seminar', 'lesson', 'social', 'webinar'];
+  final _eventTypes = [
+    'workshop', 'seminar', 'lesson', 'social', 'webinar', 'others',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +40,7 @@ class _AddEventModalState extends State<AddEventModal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Title
             AppTextField(
               label: 'Title',
               hint: 'Enter event title',
@@ -45,6 +49,7 @@ class _AddEventModalState extends State<AddEventModal> {
             ),
             const SizedBox(height: 16),
 
+            // Event type dropdown
             _buildDropdown(
               label: 'Type',
               value: _eventType,
@@ -52,8 +57,18 @@ class _AddEventModalState extends State<AddEventModal> {
               displayLabel: (v) => v[0].toUpperCase() + v.substring(1),
               onChanged: (value) => setState(() => _eventType = value!),
             ),
+            if (_eventType == 'others') ...[
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Custom Event Type',
+                hint: 'e.g. Conference, Exhibition...',
+                controller: _customTypeController,
+                validator: (v) => Validators.required(v, 'Event type'),
+              ),
+            ],
             const SizedBox(height: 16),
 
+            // Date / Time row
             Row(
               children: [
                 Expanded(
@@ -75,10 +90,7 @@ class _AddEventModalState extends State<AddEventModal> {
                       );
                       if (date != null) setState(() => _selectedDate = date);
                     },
-                    suffixIcon: const Icon(
-                      Icons.calendar_today,
-                      color: AppColors.blue,
-                    ),
+                    suffixIcon: const Icon(Icons.calendar_today, color: AppColors.blue),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -99,16 +111,14 @@ class _AddEventModalState extends State<AddEventModal> {
                       );
                       if (time != null) setState(() => _selectedTime = time);
                     },
-                    suffixIcon: const Icon(
-                      Icons.access_time,
-                      color: AppColors.blue,
-                    ),
+                    suffixIcon: const Icon(Icons.access_time, color: AppColors.blue),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
 
+            // Description
             AppMultilineField(
               label: 'Description',
               hint: 'Enter event description',
@@ -118,42 +128,48 @@ class _AddEventModalState extends State<AddEventModal> {
             ),
             const SizedBox(height: 16),
 
-            AppTextField(
-              label: 'Location',
-              hint: 'Enter event location (or "Online")',
-              controller: _locationController,
-              validator: (value) => Validators.required(value, 'Location'),
+            // Location type dropdown
+            _buildDropdown(
+              label: 'Location Type',
+              value: _locationType,
+              items: const ['Onsite', 'Online'],
+              displayLabel: (v) => v,
+              onChanged: (value) => setState(() => _locationType = value!),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            AppTextField(
-              label: 'Meeting Link (optional)',
-              hint: 'https://zoom.us/j/... or meet.google.com/...',
-              controller: _meetingLinkController,
-              keyboardType: TextInputType.url,
-              prefixIcon: const Icon(
-                Icons.videocam_outlined,
-                color: AppColors.blue,
+            // Conditional: Onsite → venue field / Online → meeting link field
+            if (_locationType == 'Onsite')
+              AppTextField(
+                label: 'Venue',
+                hint: 'e.g. KC Main Hall, Room 101...',
+                controller: _venueController,
+                validator: (v) => Validators.required(v, 'Venue'),
+                prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.blue),
+              )
+            else
+              AppTextField(
+                label: 'Meeting Link',
+                hint: 'https://zoom.us/j/... or meet.google.com/...',
+                controller: _meetingLinkController,
+                keyboardType: TextInputType.url,
+                validator: (v) => Validators.required(v, 'Meeting link'),
+                prefixIcon: const Icon(Icons.videocam_outlined, color: AppColors.blue),
               ),
-            ),
             const SizedBox(height: 8),
 
-            // Fixed fee notice
+            // Fee notice
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.blue.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(
-                    Icons.payments_outlined,
-                    color: AppColors.blue,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(Icons.payments_outlined, color: AppColors.blue, size: 18),
+                  SizedBox(width: 8),
+                  Text(
                     'Registration fee: XAF 20',
                     style: TextStyle(
                       color: AppColors.blue,
@@ -165,6 +181,7 @@ class _AddEventModalState extends State<AddEventModal> {
             ),
             const SizedBox(height: 24),
 
+            // Submit button
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -243,16 +260,18 @@ class _AddEventModalState extends State<AddEventModal> {
       AppSnackbar.error('Missing Info', 'Please select date and time');
       return;
     }
+    if (_eventType == 'others' && _customTypeController.text.trim().isEmpty) {
+      AppSnackbar.error('Missing Info', 'Please enter a custom event type');
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
     try {
       final authController = Get.find<AuthController>();
-      final hostName =
-          authController.currentUser?['full_name'] as String? ?? 'KC Connect';
-      final organizerRole =
-          authController.currentUser?['role'] as String? ?? 'staff';
-      final organizerId = Supabase.instance.client.auth.currentUser?.id;
+      final hostName       = authController.currentUser?['full_name'] as String? ?? 'KC Connect';
+      final organizerRole  = authController.currentUser?['role']      as String? ?? 'staff';
+      final organizerId    = Supabase.instance.client.auth.currentUser?.id;
 
       final startDate = DateTime(
         _selectedDate!.year,
@@ -261,24 +280,27 @@ class _AddEventModalState extends State<AddEventModal> {
         _selectedTime!.hour,
         _selectedTime!.minute,
       );
-
       final endDate = startDate.add(const Duration(hours: 2));
 
+      final isOnline = _locationType == 'Online';
+
       await Supabase.instance.client.from('events').insert({
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'event_type': _eventType,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
-        'venue': _locationController.text.trim(),
-        'host_name': hostName,
-        'organized_by': organizerId,
-        'organizer_role': organizerRole,
-        'registration_fee': 20,
-        'requires_registration': true,
-        'status': 'upcoming',
-        'visibility': 'public',
-        if (_meetingLinkController.text.trim().isNotEmpty)
+        'title':                  _titleController.text.trim(),
+        'description':            _descriptionController.text.trim(),
+        'event_type':             _eventType == 'others'
+            ? _customTypeController.text.trim().toLowerCase()
+            : _eventType,
+        'start_date':             startDate.toIso8601String(),
+        'end_date':               endDate.toIso8601String(),
+        'venue':                  isOnline ? 'Online' : _venueController.text.trim(),
+        'host_name':              hostName,
+        'organized_by':           organizerId,
+        'organizer_role':         organizerRole,
+        'registration_fee':       20,
+        'requires_registration':  true,
+        'status':                 'upcoming',
+        'visibility':             'public',
+        if (isOnline)
           'meeting_link': _meetingLinkController.text.trim(),
       });
 
@@ -296,8 +318,9 @@ class _AddEventModalState extends State<AddEventModal> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _locationController.dispose();
+    _venueController.dispose();
     _meetingLinkController.dispose();
+    _customTypeController.dispose();
     super.dispose();
   }
 }

@@ -1,4 +1,5 @@
 // lib/features/home/controllers/home_controller.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/alumni_model.dart';
@@ -12,13 +13,18 @@ class HomeController extends GetxController {
   final _featuredEvents = <EventModel>[].obs;
   final _recentResources = <ResourceModel>[].obs;
   final _featuredAlumni = <AlumniModel>[].obs;
+  final _leaderboard = <Map<String, dynamic>>[].obs;
+  final _ofTheMonth = Rxn<Map<String, dynamic>>();
   final _isLoading = false.obs;
   final _errorMessage = ''.obs;
+  Timer? _refreshTimer;
 
   Map<String, int> get stats => _stats;
   List<EventModel> get featuredEvents => _featuredEvents;
   List<ResourceModel> get recentResources => _recentResources;
   List<AlumniModel> get featuredAlumni => _featuredAlumni;
+  List<Map<String, dynamic>> get leaderboard => _leaderboard;
+  Map<String, dynamic>? get ofTheMonth => _ofTheMonth.value;
   bool get isLoading => _isLoading.value;
   String get errorMessage => _errorMessage.value;
 
@@ -54,6 +60,17 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     loadDashboardData();
+    // Refresh every 5 minutes so past events drop off without needing a
+    // manual pull-to-refresh or tab tap.
+    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      loadDashboardData();
+    });
+  }
+
+  @override
+  void onClose() {
+    _refreshTimer?.cancel();
+    super.onClose();
   }
 
   Future<void> loadDashboardData() async {
@@ -64,6 +81,8 @@ class HomeController extends GetxController {
       _loadFeaturedEvents().catchError((e) => debugPrint('Events error: $e')),
       _loadRecentResources().catchError((e) => debugPrint('Resources error: $e')),
       _loadFeaturedAlumni().catchError((e) => debugPrint('Alumni error: $e')),
+      _loadLeaderboard().catchError((e) => debugPrint('Leaderboard error: $e')),
+      _loadOfTheMonth().catchError((e) => debugPrint('OfTheMonth error: $e')),
     ]);
     _isLoading.value = false;
   }
@@ -74,7 +93,7 @@ class HomeController extends GetxController {
     final now = DateTime.now().toIso8601String();
 
     final results = await Future.wait([
-      db.from('events').select('id').neq('status', 'cancelled').neq('status', 'draft'),
+      db.from('events').select('id').neq('status', 'cancelled').neq('status', 'draft').gte('start_date', now),
       db.from('resources').select('id').eq('status', 'active'),
       db.from('users').select('id').eq('role', 'alumni').eq('status', 'active'),
       if (userId != null)
@@ -93,6 +112,14 @@ class HomeController extends GetxController {
       db.from('pinned_messages').select('id').gt('pinned_until', now),
     ]);
 
+    int userPoints = 0;
+    if (userId != null) {
+      try {
+        final row = await db.from('users').select('points').eq('id', userId).single();
+        userPoints = row['points'] as int? ?? 0;
+      } catch (_) {}
+    }
+
     _stats.value = {
       'events': results[0].length,
       'resources': results[1].length,
@@ -101,6 +128,7 @@ class HomeController extends GetxController {
       'myEvents': results[4].length,
       'myResources': results[5].length,
       'pinnedMessages': results[6].length,
+      'userPoints': userPoints,
     };
   }
 
@@ -138,6 +166,44 @@ class HomeController extends GetxController {
         .limit(3);
 
     _featuredAlumni.value = (response as List).map((a) => _alumniFromRow(a)).toList();
+  }
+
+  Future<void> _loadLeaderboard() async {
+    final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+    if (role.isEmpty) return;
+
+    final rows = await Supabase.instance.client
+        .from('users')
+        .select('id, full_name, profile_image_url, points')
+        .eq('role', role)
+        .eq('status', 'active')
+        .order('points', ascending: false)
+        .limit(5);
+
+    _leaderboard.value = List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<void> _loadOfTheMonth() async {
+    final role = Get.find<AuthController>().currentUser?['role'] as String? ?? '';
+    if (role.isEmpty) return;
+
+    final now = DateTime.now();
+    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+    final rows = await Supabase.instance.client
+        .from('users')
+        .select('id, full_name, profile_image_url, points_this_month')
+        .eq('role', role)
+        .eq('status', 'active')
+        .eq('points_month', monthKey)
+        .gt('points_this_month', 0)
+        .order('points_this_month', ascending: false)
+        .limit(1);
+
+    final list = rows as List;
+    _ofTheMonth.value = list.isNotEmpty
+        ? Map<String, dynamic>.from(list.first as Map)
+        : null;
   }
 
   Future<void> refreshDashboard() => loadDashboardData();
@@ -205,7 +271,7 @@ class HomeController extends GetxController {
       id: row['id'] ?? '',
       name: row['full_name'] ?? '',
       role: row['current_position'] ?? 'Alumni',
-      school: row['school'] ?? 'Knowledge College',
+      school: row['school'] ?? 'Knowledge Center',
       classInfo: classYear != null ? 'Class of $classYear' : 'Alumni',
       imageUrl: row['profile_image_url'],
       bio: row['bio'] ?? '',

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/message_model.dart';
 import 'package:kc_connect/core/routes/app_routes.dart';
@@ -20,20 +21,30 @@ class LearnPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final LearnController controller = Get.put(LearnController());
 
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardOpen = keyboardHeight > 0;
+
     return DefaultTabController(
       length: 2,
-      child: Material(
-        color: AppColors.backgroundColor,
-        child: Column(
-          children: [
+      child: Column(
+        children: [
+          if (!keyboardOpen) ...[
             _buildCarouselBanner(),
             const SizedBox(height: 8),
-            _buildTabBar(controller),
-            Expanded(child: _buildTabBarView(context, controller)),
-            _buildReplyBar(controller),
-            _buildInputAreaWithAIButton(context, controller),
           ],
-        ),
+          _buildTabBar(controller),
+          Expanded(child: _buildTabBarView(context, controller)),
+          Obx(() => controller.canSendInCurrentRoom
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildReplyBar(controller),
+                    _buildInputAreaWithAIButton(context, controller),
+                  ],
+                )
+              : _buildReadOnlyBanner(context, controller)),
+          SizedBox(height: keyboardHeight),
+        ],
       ),
     );
   }
@@ -659,73 +670,73 @@ class LearnPage extends StatelessWidget {
     final ext = (message.fileName ?? '').split('.').last.toLowerCase();
     final isPdf = ext == 'pdf';
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isMe ? AppColors.blue : AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: (isMe ? AppColors.white : AppColors.blue)
-                  .withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => _openChatFile(context, message),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isMe ? AppColors.blue : AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-            child: Icon(
-              isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file,
-              color: isMe ? AppColors.white : AppColors.blue,
-              size: 22,
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: (isMe ? AppColors.white : AppColors.blue)
+                    .withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file,
+                color: isMe ? AppColors.white : AppColors.blue,
+                size: 22,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.fileName ?? 'File',
-                  style: AppTextStyles.body.copyWith(
-                    color: isMe ? AppColors.white : Colors.black87,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.fileName ?? 'File',
+                    style: AppTextStyles.body.copyWith(
+                      color: isMe ? AppColors.white : Colors.black87,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  message.formattedFileSize,
-                  style: AppTextStyles.caption.copyWith(
-                    color: isMe
-                        ? AppColors.white.withValues(alpha: 0.8)
-                        : Colors.grey[500],
-                    fontSize: 11,
+                  Text(
+                    message.formattedFileSize,
+                    style: AppTextStyles.caption.copyWith(
+                      color: isMe
+                          ? AppColors.white.withValues(alpha: 0.8)
+                          : Colors.grey[500],
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _openChatFile(context, message),
-            child: Icon(
+            const SizedBox(width: 8),
+            Icon(
               Icons.open_in_new,
               color: isMe ? AppColors.white : AppColors.blue,
               size: 20,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -842,6 +853,64 @@ class LearnPage extends StatelessWidget {
         ),
       );
     });
+  }
+
+  // ─── Read-only row (shown when user can't send in this room) ────────────
+  // Mirrors the input-area layout: restriction message where the text field
+  // would be, AI button always visible at the end.
+
+  Widget _buildReadOnlyBanner(BuildContext context, LearnController controller) {
+    final room = controller.currentRoom;
+    final label = room == 'grade10' ? 'Grade 10' : 'Grade 12';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 23),
+      child: Row(
+        children: [
+          // Restriction message — uses Expanded so it never overflows
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+              decoration: BoxDecoration(
+                color: AppColors.blue.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.blue.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_outlined,
+                      color: AppColors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'View-only: $label room',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.blue,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // AI button — always visible regardless of send permission
+          Container(
+            decoration: const BoxDecoration(
+              color: AppColors.blue,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              tooltip: 'KC Connect AI',
+              icon: const Icon(Icons.auto_awesome,
+                  color: AppColors.white, size: 24),
+              onPressed: () => Get.toNamed(AppRoutes.aiChat),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─── Input area ──────────────────────────────────────────────────────────
@@ -1051,8 +1120,46 @@ class LearnPage extends StatelessWidget {
     final auth = Get.find<AuthController>();
     final uid = controller.currentUserId;
     final role = auth.currentUser?['role'] as String? ?? 'student';
-    final canPin = role == 'staff' || role == 'alumni' || role == 'admin';
+    final canSend = controller.canSendInCurrentRoom;
 
+    // Read-only room: only show Copy for text messages
+    if (!canSend) {
+      if (message.messageType != 'text' || message.content.isEmpty) return;
+      showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy, color: AppColors.blue),
+                title: const Text('Copy'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  AppSnackbar.info('Copied', 'Message copied to clipboard');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
+    final canPin = role == 'staff' || role == 'alumni' || role == 'admin';
     final room = controller.currentRoom;
     final pinned = controller.pinnedForRoom(room);
     final alreadyPinned =
@@ -1077,6 +1184,17 @@ class LearnPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+            // Copy
+            if (message.messageType == 'text' && message.content.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy, color: AppColors.blue),
+                title: const Text('Copy'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  AppSnackbar.info('Copied', 'Message copied to clipboard');
+                },
+              ),
             // Reply
             ListTile(
               leading: const Icon(Icons.reply, color: AppColors.blue),

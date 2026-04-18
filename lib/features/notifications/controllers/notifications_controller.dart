@@ -1,6 +1,7 @@
 // lib/features/notifications/controllers/notifications_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/notification_model.dart';
+import 'package:kc_connect/core/services/rewards_service.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:kc_connect/features/auth/controllers/auth_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -358,6 +359,11 @@ class NotificationsController extends GetxController {
 
       await _markMentorshipHandled(notificationId,
           actionType: 'mentorship_accepted');
+
+      // Award 2 points to the alumni for accepting to mentor a student
+      final alumniId = Supabase.instance.client.auth.currentUser?.id;
+      if (alumniId != null) await RewardsService.awardPoints(alumniId, 2);
+
       AppSnackbar.success('Accepted', 'Mentorship request accepted.');
     } catch (e) {
       AppSnackbar.error('Error', 'Failed to accept request.');
@@ -417,44 +423,6 @@ class NotificationsController extends GetxController {
     if (index != -1) {
       _allNotifications[index] = _allNotifications[index]
           .copyWith(isRead: true, actionType: actionType);
-    }
-  }
-
-  // Called when the alumni taps "End Mentorship" from their notification.
-  Future<void> endMentorshipFromAlumni(
-      String notificationId, String requestId) async {
-    try {
-      final req = await Supabase.instance.client
-          .from('mentorship_requests')
-          .select('student_id')
-          .eq('id', requestId)
-          .single();
-      final studentId = req['student_id'] as String;
-
-      await Supabase.instance.client
-          .from('mentorship_requests')
-          .update({'status': 'ended'})
-          .eq('id', requestId);
-
-      final me = Get.find<AuthController>().currentUser;
-      final mentorName = me?['full_name'] as String? ?? 'Your mentor';
-
-      await Supabase.instance.client.from('notifications').insert({
-        'user_id': studentId,
-        'title': 'Mentorship Ended',
-        'message':
-            '$mentorName has ended their mentorship with you. You can now request mentorship from other alumni.',
-        'type': 'mentorship',
-        'action_type': 'mentorship_ended',
-        'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      await _markMentorshipHandled(notificationId,
-          actionType: 'mentorship_ended');
-      AppSnackbar.info('Ended', 'Mentorship has been ended.');
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to end mentorship.');
     }
   }
 

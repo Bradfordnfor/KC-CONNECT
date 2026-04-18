@@ -55,6 +55,8 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 24),
               _buildStatsSection(controller),
               const SizedBox(height: 24),
+              _buildRewardsCard(controller),
+              const SizedBox(height: 24),
               _buildActivitySection(controller),
               const SizedBox(height: 24),
             ],
@@ -354,6 +356,168 @@ class ProfilePage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildRewardsCard(ProfileController controller) {
+    return Obx(() {
+      final pts        = controller.points;
+      final net        = controller.netPoints;
+      final hasClaim   = controller.hasRewardClaim;
+      final toNext     = controller.pointsToNextClaim;
+      final redeemed   = controller.timesRedeemed;
+      final thisMonth  = controller.pointsThisMonth;
+      final progress   = (net / 50).clamp(0.0, 1.0);
+      final role       = controller.user?['role'] as String? ?? '';
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                const Icon(Icons.stars_rounded, color: Colors.amber, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Rewards',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.blue,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$pts pts total',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.amber[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Claim available banner OR progress bar
+            if (hasClaim)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.card_giftcard, color: Colors.green, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'You have a free event registration! Use it when paying for a paid event.',
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '$net / 50 pts to free event',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    '$toNext pts to go',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.blue,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.blue),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+
+            // This month + redeemed row
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(
+                  'This month: $thisMonth pts',
+                  style: AppTextStyles.caption.copyWith(color: Colors.grey[600], fontSize: 12),
+                ),
+                if (redeemed > 0) ...[
+                  const Spacer(),
+                  Icon(Icons.redeem, size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$redeemed free event${redeemed == 1 ? '' : 's'} used',
+                    style: AppTextStyles.caption.copyWith(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            // How to earn points
+            Text(
+              role == 'alumni'
+                  ? 'Earn points: free event (+5) · paid event (+10) · K-Store purchase (+5) · mentor a student (+2)'
+                  : 'Earn points: free event (+5) · paid event (+10) · K-Store purchase (+5)',
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.grey[500],
+                fontSize: 11,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildActivitySection(ProfileController controller) {

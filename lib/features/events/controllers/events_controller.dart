@@ -1,6 +1,7 @@
 // lib/features/events/controllers/events_controller.dart
 import 'package:get/get.dart';
 import 'package:kc_connect/core/models/event_model.dart';
+import 'package:kc_connect/core/services/rewards_service.dart';
 import 'package:kc_connect/core/widgets/common/all_common_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -107,7 +108,7 @@ class EventsController extends GetxController {
     _filteredEvents.value = filtered;
   }
 
-  Future<void> registerForEvent(String eventId) async {
+  Future<void> registerForEvent(String eventId, {String? paymentStatus}) async {
     try {
       final event = _allEvents.firstWhere((e) => e.id == eventId);
 
@@ -140,7 +141,7 @@ class EventsController extends GetxController {
         'event_id': eventId,
         'user_id': userId,
         'status': 'registered',
-        'payment_status': event.isPaid ? 'pending' : 'not_required',
+        'payment_status': paymentStatus ?? (event.isPaid ? 'pending' : 'not_required'),
         'registration_date': now,
         'cancelled_at': null,
         'updated_at': now,
@@ -168,6 +169,11 @@ class EventsController extends GetxController {
         _allEvents[index] =
             event.copyWith(registeredCount: event.registeredCount + 1);
         _applyFilters();
+      }
+
+      // Award points for free event registration
+      if (!event.isPaid) {
+        try { await RewardsService.awardPoints(userId, 5); } catch (_) {}
       }
 
       // Send confirmation notification to the user
@@ -263,6 +269,7 @@ class EventsController extends GetxController {
       registeredCount: r['current_registrations'] ?? 0,
       isFeatured: r['is_featured'] ?? false,
       registrationFee: (r['registration_fee'] as num?)?.toDouble() ?? 0.0,
+      organizedBy: r['organized_by'] as String?,
     );
   }
 

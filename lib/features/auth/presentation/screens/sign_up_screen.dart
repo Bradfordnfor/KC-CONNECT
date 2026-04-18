@@ -166,6 +166,45 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                       ),
 
+                      // Class dropdown — only for students
+                      Obx(() {
+                        if (controller.selectedRole != 'Student') {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          children: [
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              initialValue: controller.selectedLevel.isEmpty
+                                  ? null
+                                  : controller.selectedLevel,
+                              hint: const Text('Select your class'),
+                              decoration: InputDecoration(
+                                labelText: 'Class',
+                                prefixIcon:
+                                    const Icon(Icons.school_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: AppColors.white,
+                              ),
+                              items: SignupController.studentLevels
+                                  .map(
+                                    (lvl) => DropdownMenuItem<String>(
+                                      value: lvl['value'],
+                                      child: Text(lvl['label']!),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) controller.changeLevel(v);
+                              },
+                            ),
+                          ],
+                        );
+                      }),
+
                       const SizedBox(height: 16),
 
                       // Password Field
@@ -175,6 +214,8 @@ class _SignupScreenState extends State<SignupScreen> {
                           obscureText: controller.obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Password',
+                            helperText: 'Min. 8 characters with letters and numbers',
+                            helperMaxLines: 2,
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -202,6 +243,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           obscureText: controller.obscureConfirmPassword,
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
+                            helperText: 'Re-enter the same password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -223,38 +265,34 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Info Card for Staff/Admin
+                      // Info Card for Alumni/Staff/Admin (OTP required)
                       Obx(() {
-                        if (controller.selectedRole == 'Staff' ||
-                            controller.selectedRole == 'Admin') {
-                          return Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 24),
-                            decoration: BoxDecoration(
-                              color: AppColors.info.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: AppColors.info,
-                                  size: 20,
+                        final role = controller.selectedRole;
+                        final needsOTP = role == 'Alumni' || role == 'Staff' || role == 'Admin';
+                        if (!needsOTP) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            color: AppColors.info.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: AppColors.info, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  role == 'Alumni'
+                                      ? 'Alumni accounts require admin approval and OTP verification. No subscription needed.'
+                                      : 'OTP verification required for ${role.toLowerCase()} accounts.',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.info),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'OTP verification required for ${controller.selectedRole.toLowerCase()} role',
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.info,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
+                              ),
+                            ],
+                          ),
+                        );
                       }),
 
                       // Signup Button
